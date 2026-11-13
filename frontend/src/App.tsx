@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Upload, FolderOpen, Eye, Trash2, Check, X, Square, FileText, Loader2,
   Files, HardDrive, ChevronLeft, ChevronRight, Merge, CheckCircle,
-  Search, Trash, Settings, HelpCircle, Plus, GripVertical, ExternalLink,
+  Search, Trash, HelpCircle, Plus, GripVertical, ExternalLink,
   AlertTriangle, CircleSlash, Save, Copy,
 } from 'lucide-react';
 
@@ -25,6 +25,8 @@ import {
 import { api } from './api';
 import type { PdfDocument, MergeResult } from './types';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ShortcutsDialog } from '@/components/shortcuts-dialog';
+import { isFormControl, isTextEntry } from './lib/shortcuts';
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -56,13 +58,13 @@ type SortMode = 'manual' | 'name' | 'size' | 'pages';
 
 const ROW_HEIGHT = 64;
 
-function IconButton({ label, onClick, disabled, children }: {
-  label: string; onClick: (e: React.MouseEvent) => void; disabled?: boolean; children: React.ReactNode;
+function IconButton({ label, onClick, disabled, tabIndex, children }: {
+  label: string; onClick: (e: React.MouseEvent) => void; disabled?: boolean; tabIndex?: number; children: React.ReactNode;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button size="icon-sm" variant="ghost" onClick={onClick} disabled={disabled} aria-label={label}>
+        <Button size="icon-sm" variant="ghost" onClick={onClick} disabled={disabled} tabIndex={tabIndex} aria-label={label}>
           {children}
         </Button>
       </TooltipTrigger>
@@ -91,10 +93,11 @@ function TriCheckbox({ checked, indeterminate, onChange, disabled, label }: {
   );
 }
 
-function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onToggle, duplicateGroup }: {
+function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onToggle, duplicateGroup, rowIndex, tabIndex, onKeyDown, onFocus }: {
   doc: PdfDocument; selected: boolean; onSelect: (e: React.MouseEvent) => void;
   onToggleSelect: () => void; onRemove: () => void; onToggle: () => void;
-  duplicateGroup: number | null;
+  duplicateGroup: number | null; rowIndex: number;
+  tabIndex: number; onKeyDown: (e: React.KeyboardEvent) => void; onFocus: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: doc.id });
   const style = {
@@ -106,8 +109,13 @@ function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onTogg
     <div
       ref={setNodeRef}
       style={style}
+      data-row-index={rowIndex}
       onClick={onSelect}
-      className={`flex h-14 items-center gap-2.5 rounded-lg border px-2.5 transition-colors cursor-pointer
+      onKeyDown={onKeyDown}
+      onFocus={onFocus}
+      tabIndex={tabIndex}
+      className={`flex h-14 items-center gap-2.5 rounded-lg border px-2.5 transition-colors cursor-pointer outline-none
+        focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-card
         ${selected ? 'border-primary/40 bg-accent/5 ring-1 ring-primary/25' : 'border-transparent hover:bg-muted/60'}
         ${doc.included ? '' : 'opacity-55'}
         ${isDragging ? 'shadow-lg bg-card border-primary/40' : ''}`}
@@ -117,6 +125,7 @@ function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onTogg
         checked={selected}
         onChange={() => onToggleSelect()}
         onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
         aria-label={`Seleccionar ${doc.name}`}
         className="h-3.5 w-3.5 flex-shrink-0 cursor-pointer accent-primary"
       />
@@ -163,12 +172,14 @@ function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onTogg
         </Badge>
         <IconButton
           label={doc.included ? 'Excluir del lote' : 'Incluir en el lote'}
+          tabIndex={-1}
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
         >
           {doc.included ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <X className="h-4 w-4" />}
         </IconButton>
         <IconButton
           label="Quitar de la lista"
+          tabIndex={-1}
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
         >
           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -202,6 +213,8 @@ export default function App() {
   const [overwrite, setOverwrite] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [focusIndex, setFocusIndex] = useState(-1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -470,6 +483,72 @@ export default function App() {
     } catch (e) { alert('No se pudieron quitar los documentos: ' + (e as Error).message); }
   };
 
+  // Foco por teclado dentro de la lista: la fila enfocada es la única con tabIndex 0.
+  const focusRow = useCallback((index: number) => {
+    if (!visibleIds.length) return;
+    const clamped = Math.max(0, Math.min(visibleIds.length - 1, index));
+    setFocusIndex(clamped);
+    virtualizer.scrollToIndex(clamped, { align: 'auto' });
+    requestAnimationFrame(() => {
+      const el = listParentRef.current?.querySelector<HTMLElement>(`[data-row-index="${clamped}"]`);
+      el?.focus();
+    });
+  }, [visibleIds.length, virtualizer]);
+
+  const onRowKeyDown = (index: number, doc: PdfDocument, e: React.KeyboardEvent) => {
+    // Solo cuando el foco está en la fila, no en sus controles internos.
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(index + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusRow(index - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); focusRow(0); }
+    else if (e.key === 'End') { e.preventDefault(); focusRow(visibleIds.length - 1); }
+    else if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); toggleRowSelection(doc.id); }
+    else if (e.key === 'Enter') { e.preventDefault(); handleRowSelect(doc.id, e as unknown as React.MouseEvent); }
+  };
+
+  // Atajos globales: se leen desde un ref para suscribir el listener una sola vez.
+  const shortcutActions = useRef({
+    openFiles: () => {}, selectAll: () => {}, clearSelection: () => {},
+    removeSelected: () => {}, merge: () => {}, openShortcuts: () => {},
+    canSelectAll: false, hasSelection: false, canMerge: false, dialogOpen: false,
+  });
+  useEffect(() => {
+    shortcutActions.current = {
+      openFiles: () => fileInputRef.current?.click(),
+      selectAll: selectAllVisible,
+      clearSelection,
+      removeSelected: () => { void bulkRemove(); },
+      merge: () => { void startMerge(); },
+      openShortcuts: () => setShowShortcuts(true),
+      canSelectAll: visibleIds.length > 0,
+      hasSelection: selectedCount > 0,
+      canMerge: includedCount > 0 && jobStatus !== 'running',
+      dialogOpen: showClearConfirm || showResult || showShortcuts,
+    };
+  });
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const a = shortcutActions.current;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key;
+      if (mod && key.toLowerCase() === 'o') { e.preventDefault(); a.openFiles(); return; }
+      if (mod && key.toLowerCase() === 'a') {
+        if (isTextEntry(e.target)) return;            // deja que se seleccione el texto del campo
+        if (!a.canSelectAll) return;
+        e.preventDefault(); a.selectAll(); return;
+      }
+      if (mod && key === 'Enter') { if (a.canMerge) { e.preventDefault(); a.merge(); } return; }
+      if (isFormControl(e.target)) return;
+      if (a.dialogOpen) return;                        // los diálogos manejan Esc y el foco
+      if (key === 'Escape') { if (a.hasSelection) { e.preventDefault(); a.clearSelection(); } return; }
+      if (key === 'Delete') { if (a.hasSelection) { e.preventDefault(); a.removeSelected(); } return; }
+      if (key === '?') { e.preventDefault(); a.openShortcuts(); return; }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const totalFiles = docs.length;
   const includedCount = docs.filter((d) => d.included).length;
   const totalPages = docs.reduce((a, d) => a + (d.included ? (d.page_count || 0) : 0), 0);
@@ -499,15 +578,11 @@ export default function App() {
           <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Ayuda"><HelpCircle className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Atajos de teclado" onClick={() => setShowShortcuts(true)}>
+                <HelpCircle className="h-4 w-4" />
+              </Button>
             </TooltipTrigger>
-            <TooltipContent>Ayuda</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Ajustes"><Settings className="h-4 w-4" /></Button>
-            </TooltipTrigger>
-            <TooltipContent>Ajustes</TooltipContent>
+            <TooltipContent>Atajos de teclado (?)</TooltipContent>
           </Tooltip>
         </div>
       </header>
@@ -696,12 +771,16 @@ export default function App() {
                           <div style={{ paddingBottom: 4 }}>
                             <DocumentRow
                               doc={doc}
+                              rowIndex={vi.index}
+                              tabIndex={vi.index === (focusIndex === -1 ? 0 : focusIndex) ? 0 : -1}
                               selected={selectedIds.has(doc.id)}
                               duplicateGroup={duplicates.groupSize.get(doc.id) ?? null}
                               onSelect={(e) => handleRowSelect(doc.id, e)}
                               onToggleSelect={() => toggleRowSelection(doc.id)}
                               onRemove={() => removeDoc(doc.id)}
                               onToggle={() => toggleDoc(doc.id)}
+                              onKeyDown={(e) => onRowKeyDown(vi.index, doc, e)}
+                              onFocus={() => { setFocusIndex(vi.index); setPreviewId(doc.id); }}
                             />
                           </div>
                         </div>
@@ -844,6 +923,9 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Keyboard shortcuts help */}
+      <ShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
 
       {/* Clear confirm */}
       <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
