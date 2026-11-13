@@ -105,11 +105,20 @@ function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onTogg
     transition,
     zIndex: isDragging ? 20 : undefined,
   };
+  const ariaLabel = [
+    doc.name,
+    doc.page_count ? `${doc.page_count} página${doc.page_count === 1 ? '' : 's'}` : 'páginas sin analizar',
+    STATUS_LABEL[doc.status],
+    doc.included ? 'incluido en el lote' : 'excluido del lote',
+    duplicateGroup ? `archivo repetido, ${duplicateGroup} copias iguales` : null,
+  ].filter(Boolean).join(', ');
   return (
     <div
       ref={setNodeRef}
       style={style}
       data-row-index={rowIndex}
+      role="listitem"
+      aria-label={ariaLabel}
       onClick={onSelect}
       onKeyDown={onKeyDown}
       onFocus={onFocus}
@@ -215,6 +224,8 @@ export default function App() {
   const [showResult, setShowResult] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
+  // Región viva: anuncia por lector de pantalla el resultado de las acciones de lote.
+  const [liveMessage, setLiveMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -279,7 +290,12 @@ export default function App() {
 
   const removeDoc = async (id: string) => { await api.removeDocument(id); if (previewId === id) setPreviewId(null); await refresh(); };
   const toggleDoc = async (id: string) => { const d = docs.find((x) => x.id === id); if (!d) return; await api.updateDocument(id, { included: !d.included }); await refresh(); };
-  const clearLot = async () => { for (const d of docs) await api.removeDocument(d.id); setDocs([]); setPreviewId(null); setSelectedIds(new Set()); setShowClearConfirm(false); await refresh(); };
+  const clearLot = async () => {
+    const removed = docs.length;
+    for (const d of docs) await api.removeDocument(d.id);
+    setDocs([]); setPreviewId(null); setSelectedIds(new Set()); setShowClearConfirm(false); await refresh();
+    setLiveMessage(`Se quitaron ${removed} documentos de la lista.`);
+  };
 
   const pickFolder = async () => {
     try {
@@ -358,6 +374,7 @@ export default function App() {
     try {
       await Promise.all(toExclude.map((id) => api.updateDocument(id, { included: false })));
       await refresh();
+      setLiveMessage(`${toExclude.length} ${toExclude.length === 1 ? 'archivo repetido excluido' : 'archivos repetidos excluidos'} del lote.`);
     } catch (e) { alert('No se pudieron excluir los repetidos: ' + (e as Error).message); }
   };
 
@@ -367,6 +384,7 @@ export default function App() {
     try {
       await Promise.all(toInclude.map((id) => api.updateDocument(id, { included: true })));
       await refresh();
+      setLiveMessage(`${toInclude.length} ${toInclude.length === 1 ? 'archivo repetido incluido' : 'archivos repetidos incluidos'} de nuevo en el lote.`);
     } catch (e) { alert('No se pudieron incluir los repetidos: ' + (e as Error).message); }
   };
 
@@ -388,7 +406,16 @@ export default function App() {
           else if (data.type === 'result') setResult(data.result);
           else if (data.type === 'done') {
             setJobStatus(data.status); es.close();
-            api.report(r.job_id).then((rep) => { setResult(rep); setShowResult(true); }).catch(() => {});
+            api.report(r.job_id).then((rep) => {
+              setResult(rep); setShowResult(true);
+              setLiveMessage(
+                rep.status === 'cancelled'
+                  ? 'Unión cancelada.'
+                  : rep.status === 'completed'
+                    ? `Unión completada: ${rep.total_pages} páginas.`
+                    : `Unión terminada con ${rep.errors?.length ?? 0} problema(s).`,
+              );
+            }).catch(() => {});
           }
           else if (data.type === 'error') setJobStatus('failed');
         } catch {}
@@ -469,6 +496,7 @@ export default function App() {
     try {
       await Promise.all(ids.map((id) => api.updateDocument(id, { included })));
       await refresh();
+      setLiveMessage(`${ids.length} ${ids.length === 1 ? 'documento' : 'documentos'} ${included ? 'incluido' : 'excluido'}${ids.length === 1 ? '' : 's'} en el lote.`);
     } catch (e) { alert('No se pudo actualizar la selección: ' + (e as Error).message); }
   };
 
@@ -480,6 +508,7 @@ export default function App() {
       if (previewId && ids.includes(previewId)) setPreviewId(null);
       setSelectedIds(new Set());
       await refresh();
+      setLiveMessage(`${ids.length} ${ids.length === 1 ? 'documento quitado' : 'documentos quitados'} de la lista.`);
     } catch (e) { alert('No se pudieron quitar los documentos: ' + (e as Error).message); }
   };
 
@@ -565,6 +594,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      {/* Anuncios para lectores de pantalla */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{liveMessage}</div>
+
       {/* Application header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b bg-card px-5">
         <div className="flex items-center gap-2.5">
@@ -588,10 +620,10 @@ export default function App() {
       </header>
 
       {/* Page heading + batch summary */}
-      <div className="flex-shrink-0 border-b bg-card/40 px-5 py-3">
+      <section aria-labelledby="page-title" className="flex-shrink-0 border-b bg-card/40 px-5 py-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Unir documentos PDF</h1>
+            <h1 id="page-title" className="text-xl font-semibold tracking-tight">Unir documentos PDF</h1>
             <p className="text-sm text-muted-foreground">Organizá tus archivos, revisá su contenido y generá un único documento.</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(true)} disabled={docs.length === 0}>
@@ -637,15 +669,15 @@ export default function App() {
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Workspace */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <main className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Document panel */}
         <div className="flex w-full flex-col border-r bg-card md:w-[38%] md:min-w-[340px] md:max-w-[500px]">
           <div className="flex-shrink-0 space-y-2 border-b p-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Documentos</span>
+              <h2 className="text-sm font-semibold">Documentos</h2>
               <span className="text-xs text-muted-foreground">{filteredDocs.length} de {docs.length}</span>
             </div>
             <div className="flex gap-2">
@@ -730,7 +762,7 @@ export default function App() {
                   </div>
                 </>
               ) : (
-                <span className="hidden text-[11px] text-muted-foreground/80 xl:inline">
+                <span className="hidden text-[11px] text-muted-foreground xl:inline">
                   Ctrl + clic para sumar · Shift + clic para un rango
                 </span>
               )}
@@ -760,15 +792,21 @@ export default function App() {
             {filteredDocs.length > 0 && (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={filteredDocs.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-                  <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+                  <div
+                    role="list"
+                    aria-label={onlyDuplicates ? 'Documentos repetidos del lote' : 'Documentos del lote'}
+                    aria-busy={uploading}
+                    style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+                  >
                     {virtualizer.getVirtualItems().map((vi) => {
                       const doc = filteredDocs[vi.index];
                       return (
                         <div
                           key={doc.id}
+                          role="presentation"
                           style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
                         >
-                          <div style={{ paddingBottom: 4 }}>
+                          <div role="presentation" style={{ paddingBottom: 4 }}>
                             <DocumentRow
                               doc={doc}
                               rowIndex={vi.index}
@@ -791,7 +829,7 @@ export default function App() {
               </DndContext>
             )}
             {docs.length > 0 && filteredDocs.length === 0 && (
-              <div className="py-8 text-center text-sm text-muted-foreground">No se encontraron documentos.</div>
+              <div role="status" className="py-8 text-center text-sm text-muted-foreground">No se encontraron documentos.</div>
             )}
           </div>
 
@@ -812,7 +850,7 @@ export default function App() {
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
           <div className="flex min-h-0 flex-1 flex-col p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Previsualización</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground/70">Previsualización</h2>
               {selectedDoc && (
                 <span className="max-w-[320px] truncate text-xs text-muted-foreground" title={selectedDoc.name}>{selectedDoc.name}</span>
               )}
@@ -858,10 +896,10 @@ export default function App() {
             </Card>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Output bar */}
-      <div className="flex-shrink-0 border-t bg-card px-5 py-3">
+      <footer className="flex-shrink-0 border-t bg-card px-5 py-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[200px] flex-1 space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="out-name">Nombre del archivo final</label>
@@ -907,7 +945,7 @@ export default function App() {
 
         {jobStatus !== 'idle' && jobStatus !== 'completed' && jobStatus !== 'completed_with_errors' && (
           <div className="mt-3 space-y-2">
-            <Progress value={progress} className="h-2" />
+            <Progress value={progress} className="h-2" aria-label="Progreso de la unión" />
             <div className="flex items-center justify-between text-xs">
               <span className="truncate text-muted-foreground">
                 Etapa: <strong className="text-foreground">{stage || 'preparando'}</strong>
@@ -922,7 +960,7 @@ export default function App() {
             )}
           </div>
         )}
-      </div>
+      </footer>
 
       {/* Keyboard shortcuts help */}
       <ShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
