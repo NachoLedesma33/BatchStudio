@@ -24,6 +24,7 @@ import {
 
 import { api } from './api';
 import type { PdfDocument, MergeResult } from './types';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -135,7 +136,7 @@ function DocumentRow({ doc, selected, onSelect, onRemove, onToggle, duplicateGro
           label={doc.included ? 'Excluir del lote' : 'Incluir en el lote'}
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
         >
-          {doc.included ? <Check className="h-4 w-4 text-emerald-600" /> : <X className="h-4 w-4" />}
+          {doc.included ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <X className="h-4 w-4" />}
         </IconButton>
         <IconButton
           label="Quitar de la lista"
@@ -368,7 +369,7 @@ export default function App() {
     { icon: Files, value: String(totalFiles), label: 'archivos' },
     { icon: FileText, value: String(totalPages), label: 'páginas' },
     { icon: HardDrive, value: formatBytes(totalBytes), label: 'tamaño' },
-    { icon: Check, value: String(includedCount), label: 'incluidos', tone: 'text-emerald-600' },
+    { icon: Check, value: String(includedCount), label: 'incluidos', tone: 'text-emerald-600 dark:text-emerald-400' },
   ];
 
   return (
@@ -383,6 +384,7 @@ export default function App() {
           <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">LOCAL</Badge>
         </div>
         <div className="flex items-center gap-0.5">
+          <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" aria-label="Ayuda"><HelpCircle className="h-4 w-4" /></Button>
@@ -420,7 +422,7 @@ export default function App() {
         </div>
 
         {duplicates.groupCount > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
             <Copy className="h-3.5 w-3.5 flex-shrink-0" />
             <span>
               <strong className="font-semibold">{dupExtras}</strong> {dupExtras === 1 ? 'archivo repetido' : 'archivos repetidos'} en{' '}
@@ -431,17 +433,17 @@ export default function App() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 px-2 text-xs text-amber-900 hover:bg-amber-100"
+                className="h-7 px-2 text-xs text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/15"
                 onClick={() => setOnlyDuplicates((v) => !v)}
               >
                 {onlyDuplicates ? 'Ver todos' : 'Ver repetidos'}
               </Button>
               {dupExtrasIncluded > 0 ? (
-                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs" onClick={excludeDuplicates}>
+                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs dark:border-amber-500/50" onClick={excludeDuplicates}>
                   Excluir repetidos ({dupExtrasIncluded})
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs" onClick={includeAllDuplicates}>
+                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs dark:border-amber-500/50" onClick={includeAllDuplicates}>
                   Volver a incluirlos
                 </Button>
               )}
@@ -708,9 +710,9 @@ export default function App() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {result?.status === 'completed' ? (
-                <><CheckCircle className="h-5 w-5 text-emerald-600" /> Unión completada</>
+                <><CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Unión completada</>
               ) : result?.status === 'completed_with_errors' ? (
-                <><AlertTriangle className="h-5 w-5 text-amber-600" /> Completado con errores</>
+                <><AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" /> Completado con errores</>
               ) : result?.status === 'cancelled' ? (
                 <><CircleSlash className="h-5 w-5 text-muted-foreground" /> Unión cancelada</>
               ) : (
