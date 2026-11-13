@@ -71,8 +71,29 @@ function IconButton({ label, onClick, disabled, children }: {
   );
 }
 
-function DocumentRow({ doc, selected, onSelect, onRemove, onToggle, duplicateGroup }: {
-  doc: PdfDocument; selected: boolean; onSelect: () => void; onRemove: () => void; onToggle: () => void;
+/** Checkbox nativo que además soporta el estado indeterminado (selección parcial). */
+function TriCheckbox({ checked, indeterminate, onChange, disabled, label }: {
+  checked: boolean; indeterminate?: boolean; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean; label: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = Boolean(indeterminate) && !checked; }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      aria-label={label}
+      className="h-3.5 w-3.5 flex-shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed"
+    />
+  );
+}
+
+function DocumentRow({ doc, selected, onSelect, onToggleSelect, onRemove, onToggle, duplicateGroup }: {
+  doc: PdfDocument; selected: boolean; onSelect: (e: React.MouseEvent) => void;
+  onToggleSelect: () => void; onRemove: () => void; onToggle: () => void;
   duplicateGroup: number | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: doc.id });
@@ -91,6 +112,14 @@ function DocumentRow({ doc, selected, onSelect, onRemove, onToggle, duplicateGro
         ${doc.included ? '' : 'opacity-55'}
         ${isDragging ? 'shadow-lg bg-card border-primary/40' : ''}`}
     >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect()}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Seleccionar ${doc.name}`}
+        className="h-3.5 w-3.5 flex-shrink-0 cursor-pointer accent-primary"
+      />
       <button
         {...attributes}
         {...listeners}
@@ -151,7 +180,10 @@ function DocumentRow({ doc, selected, onSelect, onRemove, onToggle, duplicateGro
 
 export default function App() {
   const [docs, setDocs] = useState<PdfDocument[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Selección múltiple: `selectedIds` marca los documentos operados en lote;
+  // `previewId` es el último documento enfocado, el que muestra el panel derecho.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -174,6 +206,7 @@ export default function App() {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const listParentRef = useRef<HTMLDivElement>(null);
+  const selectionAnchorRef = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -186,8 +219,21 @@ export default function App() {
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const selectedDoc = docs.find((d) => d.id === selectedId) || null;
-  useEffect(() => { if (selectedDoc) { setPreviewPage(1); setPreviewZoom(1); } }, [selectedId]);
+  const selectedDoc = docs.find((d) => d.id === previewId) || null;
+  useEffect(() => { if (previewId) { setPreviewPage(1); setPreviewZoom(1); } }, [previewId]);
+
+  // Si se quitan documentos del lote, la selección y la previsualización se ajustan solas.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (!prev.size) return prev;
+      const alive = new Set(docs.map((d) => d.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) { if (alive.has(id)) next.add(id); else changed = true; }
+      return changed ? next : prev;
+    });
+    setPreviewId((prev) => (prev && !docs.some((d) => d.id === prev) ? null : prev));
+  }, [docs]);
 
   const handleFiles = async (files: File[]) => {
     const pdfs = files.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
@@ -218,9 +264,9 @@ export default function App() {
     catch (e) { alert('Error al reordenar: ' + (e as Error).message); await refresh(); }
   };
 
-  const removeDoc = async (id: string) => { await api.removeDocument(id); if (selectedId === id) setSelectedId(null); await refresh(); };
+  const removeDoc = async (id: string) => { await api.removeDocument(id); if (previewId === id) setPreviewId(null); await refresh(); };
   const toggleDoc = async (id: string) => { const d = docs.find((x) => x.id === id); if (!d) return; await api.updateDocument(id, { included: !d.included }); await refresh(); };
-  const clearLot = async () => { for (const d of docs) await api.removeDocument(d.id); setDocs([]); setSelectedId(null); setShowClearConfirm(false); await refresh(); };
+  const clearLot = async () => { for (const d of docs) await api.removeDocument(d.id); setDocs([]); setPreviewId(null); setSelectedIds(new Set()); setShowClearConfirm(false); await refresh(); };
 
   const pickFolder = async () => {
     try {
@@ -359,6 +405,70 @@ export default function App() {
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
+
+  const visibleIds = useMemo(() => filteredDocs.map((d) => d.id), [filteredDocs]);
+  const selectedCount = selectedIds.size;
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+
+  const handleRowSelect = (id: string, e: React.MouseEvent) => {
+    const additive = e.ctrlKey || e.metaKey;
+    if (e.shiftKey && selectionAnchorRef.current) {
+      const from = visibleIds.indexOf(selectionAnchorRef.current);
+      const to = visibleIds.indexOf(id);
+      if (from >= 0 && to >= 0) {
+        const [lo, hi] = from <= to ? [from, to] : [to, from];
+        setSelectedIds(new Set(visibleIds.slice(lo, hi + 1)));
+        setPreviewId(id);
+        return;
+      }
+    }
+    selectionAnchorRef.current = id;
+    setSelectedIds((prev) => {
+      if (!additive) return new Set([id]);
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setPreviewId(id);
+  };
+
+  const toggleRowSelection = (id: string) => {
+    selectionAnchorRef.current = id;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setPreviewId(id);
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(visibleIds));
+    if (visibleIds.length) setPreviewId(visibleIds[0]);
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkSetIncluded = async (included: boolean) => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    try {
+      await Promise.all(ids.map((id) => api.updateDocument(id, { included })));
+      await refresh();
+    } catch (e) { alert('No se pudo actualizar la selección: ' + (e as Error).message); }
+  };
+
+  const bulkRemove = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    try {
+      await Promise.all(ids.map((id) => api.removeDocument(id)));
+      if (previewId && ids.includes(previewId)) setPreviewId(null);
+      setSelectedIds(new Set());
+      await refresh();
+    } catch (e) { alert('No se pudieron quitar los documentos: ' + (e as Error).message); }
+  };
 
   const totalFiles = docs.length;
   const includedCount = docs.filter((d) => d.included).length;
@@ -520,6 +630,38 @@ export default function App() {
             </div>
           </div>
 
+          {/* Selection toolbar */}
+          {docs.length > 0 && (
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b bg-muted/40 px-3 py-2">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <TriCheckbox
+                  checked={allVisibleSelected}
+                  indeterminate={someVisibleSelected}
+                  disabled={visibleIds.length === 0}
+                  onChange={(e) => (e.target.checked ? selectAllVisible() : clearSelection())}
+                  label={allVisibleSelected ? 'Quitar la selección de todos los documentos' : 'Seleccionar todos los documentos visibles'}
+                />
+                <span>{onlyDuplicates ? 'Seleccionar los repetidos' : 'Seleccionar todo'}</span>
+              </label>
+
+              {selectedCount > 0 ? (
+                <>
+                  <span className="text-xs font-medium text-foreground">{selectedCount} seleccionado{selectedCount === 1 ? '' : 's'}</span>
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button size="xs" variant="outline" onClick={() => bulkSetIncluded(true)}>Incluir</Button>
+                    <Button size="xs" variant="outline" onClick={() => bulkSetIncluded(false)}>Excluir</Button>
+                    <Button size="xs" variant="outline" onClick={bulkRemove}>Quitar de la lista</Button>
+                    <Button size="xs" variant="ghost" onClick={clearSelection}>Limpiar</Button>
+                  </div>
+                </>
+              ) : (
+                <span className="hidden text-[11px] text-muted-foreground/80 xl:inline">
+                  Ctrl + clic para sumar · Shift + clic para un rango
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Empty-state dropzone */}
           {docs.length === 0 && (
             <div
@@ -554,9 +696,10 @@ export default function App() {
                           <div style={{ paddingBottom: 4 }}>
                             <DocumentRow
                               doc={doc}
-                              selected={doc.id === selectedId}
+                              selected={selectedIds.has(doc.id)}
                               duplicateGroup={duplicates.groupSize.get(doc.id) ?? null}
-                              onSelect={() => setSelectedId(doc.id)}
+                              onSelect={(e) => handleRowSelect(doc.id, e)}
+                              onToggleSelect={() => toggleRowSelection(doc.id)}
                               onRemove={() => removeDoc(doc.id)}
                               onToggle={() => toggleDoc(doc.id)}
                             />
