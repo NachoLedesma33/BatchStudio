@@ -16,6 +16,7 @@ frontend/dist/
 
 # Tooling
 .playwright-mcp/
+.serena/
 
 # OS
 .DS_Store

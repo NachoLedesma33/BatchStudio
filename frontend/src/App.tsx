@@ -3,7 +3,7 @@ import {
   Upload, FolderOpen, Eye, Trash2, Check, X, Square, FileText, Loader2,
   Files, HardDrive, ChevronLeft, ChevronRight, Merge, CheckCircle,
   Search, Trash, Settings, HelpCircle, Plus, GripVertical, ExternalLink,
-  AlertTriangle, CircleSlash, Save,
+  AlertTriangle, CircleSlash, Save, Copy,
 } from 'lucide-react';
 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
@@ -70,8 +70,9 @@ function IconButton({ label, onClick, disabled, children }: {
   );
 }
 
-function DocumentRow({ doc, selected, onSelect, onRemove, onToggle }: {
+function DocumentRow({ doc, selected, onSelect, onRemove, onToggle, duplicateGroup }: {
   doc: PdfDocument; selected: boolean; onSelect: () => void; onRemove: () => void; onToggle: () => void;
+  duplicateGroup: number | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: doc.id });
   const style = {
@@ -99,14 +100,24 @@ function DocumentRow({ doc, selected, onSelect, onRemove, onToggle }: {
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <div className="h-11 w-8 flex-shrink-0 overflow-hidden rounded border border-border/60 bg-muted">
-        <img
-          src={`/api/documents/${doc.id}/preview/1`}
-          alt=""
-          loading="lazy"
-          className="h-full w-full object-cover"
-          onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
-        />
+      <div className="relative h-11 w-8 flex-shrink-0">
+        <div className={`h-11 w-8 overflow-hidden rounded border bg-muted ${duplicateGroup ? 'border-amber-400 ring-1 ring-amber-400/60' : 'border-border/60'}`}>
+          <img
+            src={`/api/documents/${doc.id}/preview/1`}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+          />
+        </div>
+        {duplicateGroup !== null && (
+          <span
+            className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white shadow ring-2 ring-card"
+            title={`Archivo repetido: hay ${duplicateGroup} copias iguales en el lote`}
+          >
+            <Copy className="h-2.5 w-2.5" />
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium" title={doc.name}>{doc.name}</div>
@@ -147,6 +158,7 @@ export default function App() {
   const [outputName, setOutputName] = useState('documentos_unidos.pdf');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
+  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string>('idle');
   const [progress, setProgress] = useState(0);
@@ -235,6 +247,68 @@ export default function App() {
     catch (e) { alert('No se pudo abrir: ' + (e as Error).message); }
   };
 
+  // Detección de repetidos: solo comparamos sha256 (mismo contenido byte a byte),
+  // así nunca marcamos un archivo distinto por error. Sin hash, no se marca nada.
+  const duplicates = useMemo(() => {
+    const firstByHash = new Map<string, string>();
+    const groups = new Map<string, number>();
+    const flagged = new Set<string>();
+    const extras = new Set<string>();
+    for (const d of docs) {
+      if (!d.sha256) continue;
+      const first = firstByHash.get(d.sha256);
+      if (first === undefined) { firstByHash.set(d.sha256, d.id); continue; }
+      if (!flagged.has(first)) { flagged.add(first); groups.set(d.sha256, 2); }
+      else groups.set(d.sha256, (groups.get(d.sha256) ?? 1) + 1);
+      flagged.add(d.id);
+      extras.add(d.id);
+    }
+    const groupSize = new Map<string, number>();
+    for (const [hash, size] of groups) {
+      for (const d of docs) if (d.sha256 === hash) groupSize.set(d.id, size);
+    }
+    return { groupSize, flagged, extras, groupCount: groups.size };
+  }, [docs]);
+
+  const dupExtras = duplicates.extras.size;
+  const dupExtrasIncluded = useMemo(
+    () => docs.filter((d) => duplicates.extras.has(d.id) && d.included).length,
+    [docs, duplicates],
+  );
+
+  const excludeDuplicates = async () => {
+    // Por cada grupo conservamos la primera copia incluida y excluimos el resto.
+    const byHash = new Map<string, PdfDocument[]>();
+    for (const d of docs) {
+      if (!d.sha256 || !duplicates.groupSize.has(d.id)) continue;
+      const arr = byHash.get(d.sha256) ?? [];
+      arr.push(d);
+      byHash.set(d.sha256, arr);
+    }
+    const toExclude: string[] = [];
+    for (const group of byHash.values()) {
+      let kept = false;
+      for (const d of group) {
+        if (!kept && d.included) { kept = true; continue; }
+        if (d.included) toExclude.push(d.id);
+      }
+    }
+    if (!toExclude.length) return;
+    try {
+      await Promise.all(toExclude.map((id) => api.updateDocument(id, { included: false })));
+      await refresh();
+    } catch (e) { alert('No se pudieron excluir los repetidos: ' + (e as Error).message); }
+  };
+
+  const includeAllDuplicates = async () => {
+    const toInclude = docs.filter((d) => duplicates.flagged.has(d.id) && !d.included).map((d) => d.id);
+    if (!toInclude.length) return;
+    try {
+      await Promise.all(toInclude.map((id) => api.updateDocument(id, { included: true })));
+      await refresh();
+    } catch (e) { alert('No se pudieron incluir los repetidos: ' + (e as Error).message); }
+  };
+
   const startMerge = async () => {
     setResult(null); setShowResult(false); setJobStatus('starting'); setProgress(0);
     try {
@@ -266,6 +340,7 @@ export default function App() {
 
   const filteredDocs = useMemo(() => {
     let list = docs;
+    if (onlyDuplicates) list = list.filter((d) => duplicates.flagged.has(d.id));
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((d) => d.name.toLowerCase().includes(q));
@@ -274,7 +349,7 @@ export default function App() {
     else if (sortMode === 'size') list = [...list].sort((a, b) => b.size_bytes - a.size_bytes);
     else if (sortMode === 'pages') list = [...list].sort((a, b) => (b.page_count || 0) - (a.page_count || 0));
     return list;
-  }, [docs, searchQuery, sortMode]);
+  }, [docs, searchQuery, sortMode, onlyDuplicates, duplicates]);
 
   const virtualizer = useVirtualizer({
     count: filteredDocs.length,
@@ -343,6 +418,36 @@ export default function App() {
             </div>
           ))}
         </div>
+
+        {duplicates.groupCount > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <Copy className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>
+              <strong className="font-semibold">{dupExtras}</strong> {dupExtras === 1 ? 'archivo repetido' : 'archivos repetidos'} en{' '}
+              <strong className="font-semibold">{duplicates.groupCount}</strong> {duplicates.groupCount === 1 ? 'grupo' : 'grupos'} de contenido idéntico.
+              {dupExtrasIncluded > 0 ? ' Se conserva la primera copia de cada grupo.' : ' Ya están excluidos del lote.'}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs text-amber-900 hover:bg-amber-100"
+                onClick={() => setOnlyDuplicates((v) => !v)}
+              >
+                {onlyDuplicates ? 'Ver todos' : 'Ver repetidos'}
+              </Button>
+              {dupExtrasIncluded > 0 ? (
+                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs" onClick={excludeDuplicates}>
+                  Excluir repetidos ({dupExtrasIncluded})
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="h-7 border-amber-400 bg-card text-xs" onClick={includeAllDuplicates}>
+                  Volver a incluirlos
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Workspace */}
@@ -390,6 +495,24 @@ export default function App() {
                   <SelectItem value="pages">Páginas</SelectItem>
                 </SelectContent>
               </Select>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-sm"
+                    variant={onlyDuplicates ? 'default' : 'outline'}
+                    className="h-8 w-8 flex-shrink-0"
+                    onClick={() => setOnlyDuplicates((v) => !v)}
+                    disabled={duplicates.groupCount === 0}
+                    aria-label="Mostrar solo archivos repetidos"
+                    aria-pressed={onlyDuplicates}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {duplicates.groupCount === 0 ? 'No hay archivos repetidos' : 'Mostrar solo archivos repetidos'}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -428,6 +551,7 @@ export default function App() {
                             <DocumentRow
                               doc={doc}
                               selected={doc.id === selectedId}
+                              duplicateGroup={duplicates.groupSize.get(doc.id) ?? null}
                               onSelect={() => setSelectedId(doc.id)}
                               onRemove={() => removeDoc(doc.id)}
                               onToggle={() => toggleDoc(doc.id)}
