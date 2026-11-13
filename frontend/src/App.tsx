@@ -167,6 +167,7 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState<string>('');
   const [result, setResult] = useState<MergeResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -310,13 +311,13 @@ export default function App() {
     } catch (e) { alert('No se pudieron incluir los repetidos: ' + (e as Error).message); }
   };
 
-  const startMerge = async () => {
+  const startMerge = async (forceOverwrite = false) => {
     setResult(null); setShowResult(false); setJobStatus('starting'); setProgress(0);
     try {
       const combined = outputDir.trim()
         ? `${outputDir.trim().replace(/[\\/]+$/, '')}\\${outputName.trim() || 'documentos_unidos.pdf'}`
         : (outputName.trim() || undefined);
-      const r = await api.startMerge(combined, false);
+      const r = await api.startMerge(combined, forceOverwrite || overwrite);
       setJobId(r.job_id); setJobStatus('running');
       if (eventSourceRef.current) eventSourceRef.current.close();
       const es = new EventSource(`/api/merge-jobs/${r.job_id}/events`);
@@ -364,6 +365,7 @@ export default function App() {
   const totalPages = docs.reduce((a, d) => a + (d.included ? (d.page_count || 0) : 0), 0);
   const totalBytes = docs.reduce((a, d) => a + (d.included ? d.size_bytes : 0), 0);
   const hasInvalid = docs.some((d) => d.included && (d.status === 'invalid' || d.status === 'failed'));
+  const destExists = result?.errors?.some((e) => /ya existe/i.test(e.message)) ?? false;
 
   const summary = [
     { icon: Files, value: String(totalFiles), label: 'archivos' },
@@ -652,11 +654,23 @@ export default function App() {
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <label
+              className="flex h-9 cursor-pointer select-none items-center gap-1.5 text-xs text-muted-foreground"
+              title="Si ya existe un PDF con ese nombre, lo reemplaza"
+            >
+              <input
+                type="checkbox"
+                checked={overwrite}
+                onChange={(e) => setOverwrite(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              Sobrescribir si ya existe
+            </label>
             <Button variant="outline" className="h-9" onClick={saveAs} disabled={jobStatus === 'running'}>
               <Save className="mr-1.5 h-4 w-4" /> Guardar como…
             </Button>
-            <Button className="h-9" onClick={startMerge} disabled={includedCount === 0 || jobStatus === 'running'}>
+            <Button className="h-9" onClick={() => startMerge()} disabled={includedCount === 0 || jobStatus === 'running'}>
               {jobStatus === 'running' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Merge className="mr-2 h-4 w-4" />}
               {jobStatus === 'running' ? 'Uniendo…' : `Unir ${includedCount} documento${includedCount === 1 ? '' : 's'}`}
             </Button>
@@ -735,9 +749,9 @@ export default function App() {
             </div>
           )}
 
-          {result && result.error_count > 0 && (
+          {result && result.errors.length > 0 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              <div className="mb-1 font-medium">{result.error_count} documento(s) con errores:</div>
+              <div className="mb-1 font-medium">{result.errors.length} problema(s):</div>
               <ul className="list-disc space-y-0.5 pl-4">
                 {result.errors.slice(0, 6).map((err, i) => <li key={i}>{err.message}</li>)}
               </ul>
@@ -745,6 +759,11 @@ export default function App() {
           )}
 
           <DialogFooter>
+            {destExists && (
+              <Button size="sm" onClick={() => { setOverwrite(true); setShowResult(false); startMerge(true); }}>
+                <Merge className="mr-1.5 h-4 w-4" /> Sobrescribir y unir
+              </Button>
+            )}
             {result?.output_path && (
               <>
                 <Button variant="outline" size="sm" onClick={() => reveal(result.output_path!)}>
