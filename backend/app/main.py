@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import List, Optional
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.core.config import CONFIG
@@ -63,6 +65,8 @@ class SavePathRequest(BaseModel):
 
 # El diálogo nativo corre en un PROCESO aparte: así no bloquea el hilo del
 # servidor con el bucle de Tk y siempre aparece en primer plano sobre el navegador.
+# El resultado se escribe en un archivo temporal (no en stdout) para que también
+# funcione en un ejecutable empaquetado sin consola.
 _DIALOG_SCRIPT = r"""
 import json
 import sys
@@ -73,6 +77,7 @@ from tkinter import filedialog
 kind = sys.argv[1]
 initial_dir = sys.argv[2] or None
 initial_name = sys.argv[3] or None
+out_file = sys.argv[4]
 
 root = tk.Tk()
 root.withdraw()
@@ -105,7 +110,8 @@ else:
     )
 
 root.destroy()
-sys.stdout.write(json.dumps({"path": result or None}))
+with open(out_file, "w", encoding="utf-8") as fh:
+    fh.write(json.dumps({"path": result or None}))
 """
 
 
@@ -113,6 +119,18 @@ def _default_dir() -> str:
     """Carpeta donde abrir el diálogo si no se indica otra."""
     downloads = Path.home() / "Downloads"
     return str(downloads if downloads.is_dir() else Path.home())
+
+
+def _dialog_command(kind: str, start: str, initial_name: str, out_file: str) -> list[str]:
+    """Comando que abre el diálogo nativo en un proceso aparte.
+
+    En desarrollo se ejecuta el script con el intérprete de Python. Dentro de un
+    ejecutable empaquetado `sys.executable` ES la app, así que el propio exe
+    atiende el subcomando `--native-dialog` reutilizando el mismo script.
+    """
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--native-dialog", kind, start, initial_name, out_file]
+    return [sys.executable, "-c", _DIALOG_SCRIPT, kind, start, initial_name, out_file]
 
 
 def _native_dialog(kind: str, initial_dir: Optional[str], initial_name: Optional[str]) -> Optional[str]:
@@ -126,18 +144,24 @@ def _native_dialog(kind: str, initial_dir: Optional[str], initial_name: Optional
     if sys.platform.startswith("win"):
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-    proc = subprocess.run(
-        [sys.executable, "-c", _DIALOG_SCRIPT, kind, start, initial_name or ""],
-        capture_output=True,
-        text=True,
-        creationflags=creationflags,
-    )
-    if proc.returncode != 0:
-        raise HTTPException(500, f"No se pudo abrir el diálogo del sistema: {proc.stderr.strip()}")
+    fd, out_name = tempfile.mkstemp(prefix="pdfbs_dialog_", suffix=".json")
+    os.close(fd)
+    out_file = Path(out_name)
     try:
-        return json.loads(proc.stdout.strip() or "{}").get("path")
-    except json.JSONDecodeError:
-        return None
+        proc = subprocess.run(
+            _dialog_command(kind, start, initial_name or "", str(out_file)),
+            capture_output=True,
+            text=True,
+            creationflags=creationflags,
+        )
+        if proc.returncode != 0:
+            raise HTTPException(500, f"No se pudo abrir el diálogo del sistema: {proc.stderr.strip()}")
+        try:
+            return json.loads(out_file.read_text(encoding="utf-8") or "{}").get("path")
+        except json.JSONDecodeError:
+            return None
+    finally:
+        out_file.unlink(missing_ok=True)
 
 
 @app.post("/api/system/pick-folder")
@@ -379,6 +403,28 @@ def load_session(req: dict):
             doc.status = PdfStatus.PENDING
         STORE.add(doc)
     return {"documents": STORE.to_list_dict()}
+
+
+def _ui_dir() -> Optional[Path]:
+    """Carpeta con la interfaz compilada (frontend/dist), si existe."""
+    candidates: list[Path] = []
+    if getattr(sys, "frozen", False):
+        bundle = getattr(sys, "_MEIPASS", None)
+        if bundle:
+            candidates.append(Path(bundle) / "ui")
+        candidates.append(Path(sys.executable).resolve().parent / "ui")
+    candidates.append(Path(__file__).resolve().parents[2] / "frontend" / "dist")
+    for cand in candidates:
+        if (cand / "index.html").is_file():
+            return cand
+    return None
+
+
+# La interfaz compilada se sirve desde el mismo proceso: así la app funciona
+# como aplicación de escritorio sin necesidad de un servidor de desarrollo.
+_UI_DIR = _ui_dir()
+if _UI_DIR is not None:
+    app.mount("/", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
 
 
 if __name__ == "__main__":

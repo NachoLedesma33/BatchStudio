@@ -9,6 +9,12 @@ venv/
 node_modules/
 frontend/dist/
 
+# Empaquetado
+packaging/build/
+build/
+dist/
+*.spec
+
 # Temp / data
 .pdf-batch-studio/
 *.tmp
