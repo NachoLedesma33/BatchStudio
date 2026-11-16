@@ -16,6 +16,7 @@ from app.api import legacy_merge as legacy_merge_api
 from app.api import operations as operations_api
 from app.api import pages as pages_api
 from app.api import rename as rename_api
+from app.api import search as search_api
 from app.api import sessions as sessions_api
 from app.api import settings as settings_api
 from app.api import system as system_api
@@ -94,6 +95,7 @@ def create_app(
 
     app.include_router(system_api.router)
     app.include_router(capabilities_api.router)
+    app.include_router(search_api.router)
     app.include_router(sessions_api.router)
     app.include_router(settings_api.router)
     app.include_router(documents_api.router)

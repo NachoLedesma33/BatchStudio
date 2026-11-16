@@ -139,6 +139,16 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+  search: (query: string, limit = 50) =>
+    request<{ results: Array<{ doc_id: string; page_no: number; name: string; snippet: string }> }>('/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit }),
+    }),
+  rebuildSearchIndex: () => request<{ indexed: number; total: number }>('/search/index', { method: 'POST' }),
+  clearSearchIndex: () => request<{ cleared: boolean }>('/search/index', { method: 'DELETE' }),
+  searchInDocument: (id: string, q: string) =>
+    request<{ results: Array<{ page: number; snippet: string }> }>(`/documents/${id}/search?q=${encodeURIComponent(q)}`),
   reveal: (path: string) =>
     request<{ ok: boolean }>('/system/reveal', {
       method: 'POST',

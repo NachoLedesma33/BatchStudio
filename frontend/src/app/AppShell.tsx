@@ -36,6 +36,7 @@ import { OrganizerPanel } from '@/features/organizer/OrganizerPanel';
 import { ConvertPanel } from '@/features/convert/ConvertPanel';
 import { JobsPanel } from '@/features/queue/JobsPanel';
 import { RenameDialog } from '@/features/rename/RenameDialog';
+import { SearchPanel } from '@/features/search/SearchPanel';
 import { useGlobalShortcuts } from '@/lib/hooks/use-global-shortcuts';
 
 type SortMode = 'manual' | 'name' | 'size' | 'pages';
@@ -46,7 +47,7 @@ export default function AppShell() {
   const [outputDir, setOutputDir] = useState('');
   const [outputName, setOutputName] = useState('documentos_unidos.pdf');
   const [overwrite, setOverwrite] = useState(false);
-  const [view, setView] = useState<'merge' | 'split' | 'organize' | 'convert' | 'jobs'>('merge');
+  const [view, setView] = useState<'merge' | 'split' | 'organize' | 'convert' | 'jobs' | 'search'>('merge');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -280,6 +281,7 @@ export default function AppShell() {
               <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}>Organizar</Button>
               <Button size="sm" variant={view === 'convert' ? 'default' : 'outline'} onClick={() => setView('convert')}>Convertir</Button>
               <Button size="sm" variant={view === 'jobs' ? 'default' : 'outline'} onClick={() => setView('jobs')}>Cola</Button>
+              <Button size="sm" variant={view === 'search' ? 'default' : 'outline'} onClick={() => setView('search')}>Buscar</Button>
               <Button size="sm" variant="outline" onClick={() => setShowRename(true)}>Renombrar lote</Button>
             </div>
             <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
@@ -516,6 +518,10 @@ export default function AppShell() {
         ) : view === 'jobs' ? (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
           <JobsPanel announce={announce} />
+        </div>
+        ) : view === 'search' ? (
+        <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
+          <SearchPanel announce={announce} />
         </div>
         ) : (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
