@@ -12,8 +12,13 @@ from app.db.repositories.jobs import JobRepository
 from app.db.repositories.pages import PageRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
+from app.operations.compress import CompressOperation
+from app.operations.edit_metadata import EditMetadataOperation
 from app.operations.extract import ExtractOperation
+from app.operations.extract_text import ExtractTextOperation
+from app.operations.images_to_pdf import ImagesToPdfOperation
 from app.operations.merge import MergeOperation
+from app.operations.pdf_to_images import PdfToImagesOperation
 from app.operations.registry import OperationRegistry
 from app.operations.rotate import RotateOperation
 from app.operations.split import SplitOperation
@@ -65,6 +70,11 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry.register(SplitOperation(documents, cfg))
     registry.register(ExtractOperation(documents, cfg))
     registry.register(RotateOperation(documents, cfg))
+    registry.register(PdfToImagesOperation(documents, cfg))
+    registry.register(ImagesToPdfOperation(documents, cfg))
+    registry.register(ExtractTextOperation(documents, cfg))
+    registry.register(EditMetadataOperation(documents, cfg))
+    registry.register(CompressOperation(documents, cfg))
 
     events = EventBus()
     worker = JobWorker(
