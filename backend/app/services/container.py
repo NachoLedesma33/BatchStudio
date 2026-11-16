@@ -10,6 +10,7 @@ from app.db.repositories.documents import DocumentRepository
 from app.db.repositories.history import HistoryRepository
 from app.db.repositories.jobs import JobRepository
 from app.db.repositories.pages import PageRepository
+from app.db.repositories.rules import RulesRepository
 from app.db.repositories.search import SearchRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
@@ -39,6 +40,7 @@ class Services:
     sessions: SessionRepository
     documents: DocumentRepository
     pages: PageRepository
+    rules: RulesRepository
     search: SearchRepository
     jobs: JobRepository
     history: HistoryRepository
@@ -64,6 +66,7 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     sessions = SessionRepository(db)
     documents = DocumentRepository(db)
     pages = PageRepository(db)
+    rules = RulesRepository(db)
     search = SearchRepository(db)
     jobs = JobRepository(db)
     history = HistoryRepository(db)
@@ -97,6 +100,7 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
         sessions=sessions,
         documents=documents,
         pages=pages,
+        rules=rules,
         search=search,
         jobs=jobs,
         history=history,

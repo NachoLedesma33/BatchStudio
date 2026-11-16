@@ -10,8 +10,8 @@ def test_migrations_create_schema(tmp_path: Path, services) -> None:
     db = Database(tmp_path / "fresh.db")
     try:
         version = migrate(db, services.config.migrations_dir)
-        assert version == 2
-        assert db.user_version() == 2
+        assert version == 3
+        assert db.user_version() == 3
         tables = {
             row[0]
             for row in db.connect()
@@ -45,8 +45,8 @@ def test_migrations_are_idempotent(tmp_path: Path, services) -> None:
     try:
         first = migrate(db, services.config.migrations_dir)
         second = migrate(db, services.config.migrations_dir)
-        assert first == second == 2
-        assert db.user_version() == 2
-        assert schema_versions(services.config.migrations_dir) == [1, 2]
+        assert first == second == 3
+        assert db.user_version() == 3
+        assert schema_versions(services.config.migrations_dir) == [1, 2, 3]
     finally:
         db.close()
