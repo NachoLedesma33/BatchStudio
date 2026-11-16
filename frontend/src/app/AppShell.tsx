@@ -3,7 +3,8 @@ import {
   Upload, FolderOpen, Eye, Square, FileText, Loader2,
   Files, HardDrive, ChevronLeft, ChevronRight, Merge, CheckCircle,
   Search, Trash, HelpCircle, Plus, ExternalLink,
-  AlertTriangle, CircleSlash, Save, Copy, Check,
+  AlertTriangle, CircleSlash, Save, Copy, Check, Settings,
+  Scissors, LayoutGrid, Wand2, ListTodo,
 } from 'lucide-react';
 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -277,13 +278,13 @@ export default function AppShell() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="mb-2 flex gap-1.5">
-              <Button size="sm" variant={view === 'merge' ? 'default' : 'outline'} onClick={() => setView('merge')}>Unir</Button>
-              <Button size="sm" variant={view === 'split' ? 'default' : 'outline'} onClick={() => setView('split')}>Dividir</Button>
-              <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}>Organizar</Button>
-              <Button size="sm" variant={view === 'convert' ? 'default' : 'outline'} onClick={() => setView('convert')}>Convertir</Button>
-              <Button size="sm" variant={view === 'jobs' ? 'default' : 'outline'} onClick={() => setView('jobs')}>Cola</Button>
-              <Button size="sm" variant={view === 'search' ? 'default' : 'outline'} onClick={() => setView('search')}>Buscar</Button>
-              <Button size="sm" variant={view === 'rules' ? 'default' : 'outline'} onClick={() => setView('rules')}>Reglas</Button>
+              <Button size="sm" variant={view === 'merge' ? 'default' : 'outline'} onClick={() => setView('merge')}><Merge className="mr-1.5 h-3.5 w-3.5" />Unir</Button>
+              <Button size="sm" variant={view === 'split' ? 'default' : 'outline'} onClick={() => setView('split')}><Scissors className="mr-1.5 h-3.5 w-3.5" />Dividir</Button>
+              <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}><LayoutGrid className="mr-1.5 h-3.5 w-3.5" />Organizar</Button>
+              <Button size="sm" variant={view === 'convert' ? 'default' : 'outline'} onClick={() => setView('convert')}><Wand2 className="mr-1.5 h-3.5 w-3.5" />Convertir</Button>
+              <Button size="sm" variant={view === 'jobs' ? 'default' : 'outline'} onClick={() => setView('jobs')}><ListTodo className="mr-1.5 h-3.5 w-3.5" />Cola</Button>
+              <Button size="sm" variant={view === 'search' ? 'default' : 'outline'} onClick={() => setView('search')}><Search className="mr-1.5 h-3.5 w-3.5" />Buscar</Button>
+              <Button size="sm" variant={view === 'rules' ? 'default' : 'outline'} onClick={() => setView('rules')}><Settings className="mr-1.5 h-3.5 w-3.5" />Reglas</Button>
               <Button size="sm" variant="outline" onClick={() => setShowRename(true)}>Renombrar lote</Button>
             </div>
             <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
