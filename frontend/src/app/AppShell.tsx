@@ -784,11 +784,11 @@ export default function AppShell() {
             </div>
           )}
 
-          {session.result && session.result.errors.length > 0 && (
+          {session.result && Array.isArray(session.result.errors) && session.result.errors.length > 0 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              <div className="mb-1 font-medium">{session.result.errors.length} problema(s):</div>
+              <div className="mb-1 font-medium">{session.result.errors?.length ?? 0} problema(s):</div>
               <ul className="list-disc space-y-0.5 pl-4">
-                {session.result.errors.slice(0, 6).map((err, i) => <li key={i}>{err.message}</li>)}
+                {session.result.errors?.slice(0, 6).map((err, i) => <li key={i}>{err.message}</li>)}
               </ul>
             </div>
           )}
