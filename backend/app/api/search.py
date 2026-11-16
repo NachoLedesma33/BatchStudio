@@ -64,6 +64,12 @@ def clear_index(
     return {"cleared": True}
 
 
+@router.get("/search/status")
+def search_status(
+    session_id: str = Depends(get_session_id),
+    services: Services = Depends(get_services),
+):
+    return {"indexed": services.search.count(session_id)}
 @router.get("/documents/{document_id}/search")
 def document_search(
     document_id: str,

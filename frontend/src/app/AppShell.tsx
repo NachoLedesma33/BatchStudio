@@ -521,7 +521,7 @@ export default function AppShell() {
         </div>
         ) : view === 'search' ? (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
-          <SearchPanel announce={announce} />
+          <SearchPanel docs={docs} announce={announce} onOpen={(docId, page) => { selection.setPreviewId(docId); setPreviewPage(page); setView('merge'); }} />
         </div>
         ) : (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
