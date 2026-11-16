@@ -32,6 +32,7 @@ import { formatBytes } from '@/features/merge/document-meta';
 import { useDocumentSelection, usePruneSelection } from '@/features/merge/use-document-selection';
 import { useMergeSession } from '@/features/merge/use-merge-session';
 import { useSplitSession } from '@/features/split/use-split-session';
+import { OrganizerPanel } from '@/features/organizer/OrganizerPanel';
 import { useGlobalShortcuts } from '@/lib/hooks/use-global-shortcuts';
 
 type SortMode = 'manual' | 'name' | 'size' | 'pages';
@@ -42,7 +43,7 @@ export default function AppShell() {
   const [outputDir, setOutputDir] = useState('');
   const [outputName, setOutputName] = useState('documentos_unidos.pdf');
   const [overwrite, setOverwrite] = useState(false);
-  const [view, setView] = useState<'merge' | 'split'>('merge');
+  const [view, setView] = useState<'merge' | 'split' | 'organize'>('merge');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -98,6 +99,8 @@ export default function AppShell() {
   });
 
   usePruneSelection(docs, selection.setSelectedIds, selection.setPreviewId);
+
+  const organizeDocId = selection.previewId || (docs.length ? docs[0].id : null);
 
   // Si se quitan documentos del lote, la selección y la previsualización se ajustan solas.
   const selectedDoc = docs.find((d) => d.id === selection.previewId) || null;
@@ -263,6 +266,7 @@ export default function AppShell() {
             <div className="mb-2 flex gap-1.5">
               <Button size="sm" variant={view === 'merge' ? 'default' : 'outline'} onClick={() => setView('merge')}>Unir</Button>
               <Button size="sm" variant={view === 'split' ? 'default' : 'outline'} onClick={() => setView('split')}>Dividir</Button>
+              <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}>Organizar</Button>
             </div>
             <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
             <p className="text-sm text-muted-foreground">{view === 'split' ? 'Dividí un PDF en varios archivos por rangos, cada N páginas o página por página.' : 'Organizá tus archivos, revisá su contenido y generá un único documento.'}</p>
@@ -487,7 +491,11 @@ export default function AppShell() {
           )}
         </div>
 
-        {/* Preview panel */}
+        {view === 'organize' ? (
+        <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
+          <OrganizerPanel documentId={organizeDocId} outputDir={outputDir} announce={announce} />
+        </div>
+        ) : (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
           <div className="flex min-h-0 flex-1 flex-col p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -537,9 +545,11 @@ export default function AppShell() {
             </Card>
           </div>
         </div>
+        )}
+
       </main>
 
-      {view === 'merge' ? (
+      {view === 'merge' || view === 'organize' ? (
       <footer className="flex-shrink-0 border-t bg-card px-5 py-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[200px] flex-1 space-y-1">

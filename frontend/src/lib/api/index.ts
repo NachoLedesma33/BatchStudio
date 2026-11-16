@@ -124,6 +124,20 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initial_dir: initialDir || null, initial_name: initialName || null }),
     }),
+  getPages: (id: string) =>
+    request<{ document_id: string; pages: Array<{ page_no: number; page_order: number; rotation: number; excluded: boolean }> }>(`/documents/${id}/pages`),
+  replacePages: (id: string, pages: Array<{ page_no: number; page_order?: number; rotation?: number; excluded?: boolean }>) =>
+    request<{ document_id: string; pages: Array<{ page_no: number; page_order: number; rotation: number; excluded: boolean }> }>(`/documents/${id}/pages`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pages }),
+    }),
+  patchPage: (id: string, pageNo: number, body: { page_order?: number; rotation?: number; excluded?: boolean }) =>
+    request<{ document_id: string; page_no: number; updated: boolean }>(`/documents/${id}/pages/${pageNo}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   reveal: (path: string) =>
     request<{ ok: boolean }>('/system/reveal', {
       method: 'POST',
