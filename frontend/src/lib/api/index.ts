@@ -105,8 +105,8 @@ export const api = {
   autorestoreSession: () => request<{ restored: boolean; documents: PdfDocument[] }>('/sessions/autorestore', { method: 'POST' }),
   listSessions: () =>
     request<{ sessions: Array<Record<string, unknown>> }>('/sessions'),
-  history: (limit = 50) =>
-    request<{ history: Array<Record<string, unknown>> }>(`/history?limit=${limit}`),
+  listHistory: (limit = 100) => request<{ history: Array<Record<string, unknown>> }>(`/history?limit=${limit}`),
+  exportHistory: (format: string, limit = 500) => request<{ format: string; content?: string; items?: unknown[] }>(`/history/export?format=${encodeURIComponent(format)}&limit=${limit}`),
 
   pickFolder: (initialDir?: string) =>
     request<{ path: string | null }>(

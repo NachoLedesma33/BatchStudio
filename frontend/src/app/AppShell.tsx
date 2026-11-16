@@ -35,6 +35,7 @@ import { useSplitSession } from '@/features/split/use-split-session';
 import { OrganizerPanel } from '@/features/organizer/OrganizerPanel';
 import { ConvertPanel } from '@/features/convert/ConvertPanel';
 import { JobsPanel } from '@/features/queue/JobsPanel';
+import { RenameDialog } from '@/features/rename/RenameDialog';
 import { useGlobalShortcuts } from '@/lib/hooks/use-global-shortcuts';
 
 type SortMode = 'manual' | 'name' | 'size' | 'pages';
@@ -50,6 +51,7 @@ export default function AppShell() {
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showRename, setShowRename] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
   const [previewPage, setPreviewPage] = useState(1);
@@ -278,6 +280,7 @@ export default function AppShell() {
               <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}>Organizar</Button>
               <Button size="sm" variant={view === 'convert' ? 'default' : 'outline'} onClick={() => setView('convert')}>Convertir</Button>
               <Button size="sm" variant={view === 'jobs' ? 'default' : 'outline'} onClick={() => setView('jobs')}>Cola</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowRename(true)}>Renombrar lote</Button>
             </div>
             <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
             <p className="text-sm text-muted-foreground">{view === 'split' ? 'Dividí un PDF en varios archivos por rangos, cada N páginas o página por página.' : 'Organizá tus archivos, revisá su contenido y generá un único documento.'}</p>
@@ -836,6 +839,9 @@ export default function AppShell() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Rename dialog */}
+      <RenameDialog open={showRename} onOpenChange={setShowRename} onDone={() => { void session.refresh(); }} />
 
       {/* Hidden inputs */}
       <input ref={fileInputRef} type="file" accept="application/pdf" multiple hidden
