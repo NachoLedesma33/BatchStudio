@@ -33,6 +33,7 @@ import { useDocumentSelection, usePruneSelection } from '@/features/merge/use-do
 import { useMergeSession } from '@/features/merge/use-merge-session';
 import { useSplitSession } from '@/features/split/use-split-session';
 import { OrganizerPanel } from '@/features/organizer/OrganizerPanel';
+import { ConvertPanel } from '@/features/convert/ConvertPanel';
 import { useGlobalShortcuts } from '@/lib/hooks/use-global-shortcuts';
 
 type SortMode = 'manual' | 'name' | 'size' | 'pages';
@@ -43,7 +44,7 @@ export default function AppShell() {
   const [outputDir, setOutputDir] = useState('');
   const [outputName, setOutputName] = useState('documentos_unidos.pdf');
   const [overwrite, setOverwrite] = useState(false);
-  const [view, setView] = useState<'merge' | 'split' | 'organize'>('merge');
+  const [view, setView] = useState<'merge' | 'split' | 'organize' | 'convert'>('merge');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -267,6 +268,7 @@ export default function AppShell() {
               <Button size="sm" variant={view === 'merge' ? 'default' : 'outline'} onClick={() => setView('merge')}>Unir</Button>
               <Button size="sm" variant={view === 'split' ? 'default' : 'outline'} onClick={() => setView('split')}>Dividir</Button>
               <Button size="sm" variant={view === 'organize' ? 'default' : 'outline'} onClick={() => setView('organize')}>Organizar</Button>
+              <Button size="sm" variant={view === 'convert' ? 'default' : 'outline'} onClick={() => setView('convert')}>Convertir</Button>
             </div>
             <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
             <p className="text-sm text-muted-foreground">{view === 'split' ? 'Dividí un PDF en varios archivos por rangos, cada N páginas o página por página.' : 'Organizá tus archivos, revisá su contenido y generá un único documento.'}</p>
@@ -494,6 +496,10 @@ export default function AppShell() {
         {view === 'organize' ? (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
           <OrganizerPanel documentId={organizeDocId} outputDir={outputDir} announce={announce} />
+        </div>
+        ) : view === 'convert' ? (
+        <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
+          <ConvertPanel docs={docs} outputDir={outputDir} announce={announce} />
         </div>
         ) : (
         <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
