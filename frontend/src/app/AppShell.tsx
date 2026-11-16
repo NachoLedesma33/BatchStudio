@@ -31,6 +31,7 @@ import { findDuplicates } from '@/features/merge/duplicates';
 import { formatBytes } from '@/features/merge/document-meta';
 import { useDocumentSelection, usePruneSelection } from '@/features/merge/use-document-selection';
 import { useMergeSession } from '@/features/merge/use-merge-session';
+import { useSplitSession } from '@/features/split/use-split-session';
 import { useGlobalShortcuts } from '@/lib/hooks/use-global-shortcuts';
 
 type SortMode = 'manual' | 'name' | 'size' | 'pages';
@@ -41,6 +42,7 @@ export default function AppShell() {
   const [outputDir, setOutputDir] = useState('');
   const [outputName, setOutputName] = useState('documentos_unidos.pdf');
   const [overwrite, setOverwrite] = useState(false);
+  const [view, setView] = useState<'merge' | 'split'>('merge');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -58,6 +60,7 @@ export default function AppShell() {
   const announce = useCallback((message: string) => setLiveMessage(message), []);
   const session = useMergeSession({ outputDir, outputName, overwrite, announce });
   const docs = session.docs;
+  const split = useSplitSession({ outputDir, announce });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -257,8 +260,12 @@ export default function AppShell() {
       <section aria-labelledby="page-title" className="flex-shrink-0 border-b bg-card/40 px-5 py-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 id="page-title" className="text-xl font-semibold tracking-tight">Unir documentos PDF</h1>
-            <p className="text-sm text-muted-foreground">Organizá tus archivos, revisá su contenido y generá un único documento.</p>
+            <div className="mb-2 flex gap-1.5">
+              <Button size="sm" variant={view === 'merge' ? 'default' : 'outline'} onClick={() => setView('merge')}>Unir</Button>
+              <Button size="sm" variant={view === 'split' ? 'default' : 'outline'} onClick={() => setView('split')}>Dividir</Button>
+            </div>
+            <h1 id="page-title" className="text-xl font-semibold tracking-tight">{view === 'split' ? 'Dividir PDF' : 'Unir documentos PDF'}</h1>
+            <p className="text-sm text-muted-foreground">{view === 'split' ? 'Dividí un PDF en varios archivos por rangos, cada N páginas o página por página.' : 'Organizá tus archivos, revisá su contenido y generá un único documento.'}</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(true)} disabled={docs.length === 0}>
             <Trash className="mr-1.5 h-4 w-4" /> Limpiar lote
@@ -532,7 +539,7 @@ export default function AppShell() {
         </div>
       </main>
 
-      {/* Output bar */}
+      {view === 'merge' ? (
       <footer className="flex-shrink-0 border-t bg-card px-5 py-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[200px] flex-1 space-y-1">
@@ -595,6 +602,99 @@ export default function AppShell() {
           </div>
         )}
       </footer>
+      ) : (
+      <footer className="flex-shrink-0 border-t bg-card px-5 py-3 space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[160px] space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Modo</label>
+            <Select value={split.mode} onValueChange={(v) => split.setMode(v as 'ranges' | 'every' | 'single')}>
+              <SelectTrigger size="sm" className="w-[160px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ranges">Rangos</SelectItem>
+                <SelectItem value="every">Cada N páginas</SelectItem>
+                <SelectItem value="single">Una página por archivo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {split.mode === 'ranges' && (
+            <div className="min-w-[220px] flex-1 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Rangos (ej. 1-3, 5, 8-10)</label>
+              <Input value={split.ranges} onChange={(e) => split.setRanges(e.target.value)} className="h-9 text-sm" />
+            </div>
+          )}
+          {split.mode === 'every' && (
+            <div className="min-w-[120px] space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Cada N páginas</label>
+              <Input value={split.every} onChange={(e) => split.setEvery(e.target.value)} className="h-9 text-sm" />
+            </div>
+          )}
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Plantilla de nombre</label>
+            <Input value={split.template} onChange={(e) => split.setTemplate(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="min-w-[160px] space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Colisión</label>
+            <Select value={split.collisionPolicy} onValueChange={(v) => split.setCollisionPolicy(v as 'suffix' | 'fail' | 'overwrite')}>
+              <SelectTrigger size="sm" className="w-[160px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="suffix">Sufijo (_2)</SelectItem>
+                <SelectItem value="fail">Fallar</SelectItem>
+                <SelectItem value="overwrite">Sobrescribir</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Carpeta de salida</label>
+            <div className="flex gap-2">
+              <Input value={outputDir} onChange={(e) => setOutputDir(e.target.value)} placeholder="Vacío = junto al origen" className="h-9 flex-1 text-sm" />
+              <Button variant="outline" className="h-9 flex-shrink-0" onClick={pickFolder} aria-label="Elegir carpeta de destino">
+                <FolderOpen className="mr-1.5 h-4 w-4" /> Elegir…
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={split.preview} disabled={split.previewing || split.docs.length === 0}>
+            {split.previewing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null} Vista previa
+          </Button>
+          <Button size="sm" onClick={split.startSplit} disabled={split.docs.length === 0 || split.jobStatus === 'running'}>
+            {split.jobStatus === 'running' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+            {split.jobStatus === 'running' ? 'Dividiendo…' : 'Dividir'}
+          </Button>
+          {split.jobStatus === 'running' && (
+            <Button variant="destructive" size="sm" onClick={split.cancelSplit}>
+              <Square className="mr-1.5 h-3.5 w-3.5" /> Cancelar
+            </Button>
+          )}
+        </div>
+        {split.previewError && <div className="text-xs text-destructive">{split.previewError}</div>}
+        {split.plan && (
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs space-y-1">
+            <div className="font-medium">{split.plan.summary.total_files ?? 0} archivos · {split.plan.summary.total_pages ?? 0} páginas</div>
+            {split.plan.warnings.map((w, i) => <div key={i} className="text-amber-700 dark:text-amber-400">{w.message}</div>)}
+            {split.plan.errors.map((e, i) => <div key={i} className="text-destructive">{e.message}</div>)}
+            <ul className="list-disc pl-4 space-y-0.5">
+              {split.plan.items.slice(0, 12).map((item) => (
+                <li key={item.index}>{item.label} — {item.pages?.length ?? 0} pág.</li>
+              ))}
+              {split.plan.items.length > 12 && <li>… y {split.plan.items.length - 12} más</li>}
+            </ul>
+          </div>
+        )}
+        {split.jobStatus !== 'idle' && split.jobStatus !== 'completed' && split.jobStatus !== 'completed_with_errors' && split.jobStatus !== 'failed' && split.jobStatus !== 'cancelled' && (
+          <div className="space-y-2">
+            <Progress value={split.progress} className="h-2" aria-label="Progreso de la división" />
+            <div className="flex items-center justify-between text-xs">
+              <span className="truncate text-muted-foreground">
+                Etapa: <strong className="text-foreground">{split.stage || 'preparando'}</strong>
+                {split.currentFile && <span className="ml-2 text-muted-foreground/70">{split.currentFile}</span>}
+              </span>
+              <span className="font-semibold tabular-nums text-primary">{Math.round(split.progress)}%</span>
+            </div>
+          </div>
+        )}
+      </footer>
+      )}
 
       {/* Keyboard shortcuts help */}
       <ShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
@@ -670,6 +770,39 @@ export default function AppShell() {
                   <ExternalLink className="mr-1.5 h-4 w-4" /> Abrir PDF
                 </Button>
               </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Split result */}
+      <Dialog open={split.showResult} onOpenChange={split.setShowResult}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>División {String(split.result?.status ?? '')}</DialogTitle>
+            <DialogDescription>
+              {split.result && (
+                <>
+                  {String(split.result.total_files ?? 0)} archivos · {String(split.result.total_pages ?? 0)} páginas
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {Array.isArray(split.result?.outputs) && (split.result!.outputs as string[]).length > 0 && (
+            <div className="rounded-lg border bg-muted/50 px-3 py-2 text-xs break-all">
+              {(split.result!.outputs as string[]).slice(0, 5).join('\\n')}
+            </div>
+          )}
+          {Array.isArray(split.result?.errors) && (split.result!.errors as unknown[]).length > 0 && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {(split.result!.errors as Array<{ message?: string }>).length} problema(s)
+            </div>
+          )}
+          <DialogFooter>
+            {(split.result as any)?.output_dirs && Array.isArray((split.result as any).output_dirs) && ((split.result as any).output_dirs as string[]).length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => reveal((split.result!.output_dirs as string[])[0])}>
+                <FolderOpen className="mr-1.5 h-4 w-4" /> Abrir carpeta
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>
