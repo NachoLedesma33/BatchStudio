@@ -78,3 +78,26 @@ def list_history(
     services: Services = Depends(get_services),
 ):
     return {"history": services.history.list(limit)}
+
+
+@router.get("/history/export")
+def export_history(
+    format: str = Query(default="json"),
+    limit: int = Query(default=500, ge=1, le=5000),
+    services: Services = Depends(get_services),
+):
+    history = services.history.list(limit)
+    if format.lower() == "json":
+        return {"format": "json", "items": history}
+    if format.lower() == "csv":
+        import csv
+        import io
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["id", "job_id", "kind", "summary", "created_at"])
+        for item in history:
+            writer.writerow([item.get("id"), item.get("job_id"), item.get("kind"), item.get("summary"), item.get("created_at")])
+        return {"format": "csv", "content": buffer.getvalue()}
+    lines = [f"{item.get('created_at')} - {item.get('kind')} - {item.get('summary')}" for item in history]
+    return {"format": "txt", "content": "\n".join(lines)}
