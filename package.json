@@ -1,0 +1,9 @@
+{
+  "name": "pdf-batch-studio",
+  "private": true,
+  "scripts": {
+    "dev": "cmd /c start \"PDFBS Backend\" cmd /k \"cd /d backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload\" && cmd /c start \"PDFBS Frontend\" cmd /k \"cd /d frontend && npm run dev\"",
+    "all": "npm run dev",
+    "prod": "cd frontend && npm run build && cd ../backend && python -m app.desktop"
+  }
+}
