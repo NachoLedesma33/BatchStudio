@@ -20,8 +20,10 @@ from app.operations.images_to_pdf import ImagesToPdfOperation
 from app.operations.merge import MergeOperation
 from app.operations.pdf_to_images import PdfToImagesOperation
 from app.operations.registry import OperationRegistry
+from app.operations.page_numbers import PageNumbersOperation
 from app.operations.rotate import RotateOperation
 from app.operations.split import SplitOperation
+from app.operations.watermark import WatermarkOperation
 from app.services.capabilities import CapabilityService
 from app.services.event_bus import EventBus
 from app.services.job_worker import JobWorker
@@ -75,6 +77,8 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry.register(ExtractTextOperation(documents, cfg))
     registry.register(EditMetadataOperation(documents, cfg))
     registry.register(CompressOperation(documents, cfg))
+    registry.register(WatermarkOperation(documents, cfg))
+    registry.register(PageNumbersOperation(documents, cfg))
 
     events = EventBus()
     worker = JobWorker(

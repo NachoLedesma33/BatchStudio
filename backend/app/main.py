@@ -16,6 +16,7 @@ from app.api import legacy_merge as legacy_merge_api
 from app.api import operations as operations_api
 from app.api import pages as pages_api
 from app.api import sessions as sessions_api
+from app.api import settings as settings_api
 from app.api import system as system_api
 from app.core.config import CONFIG
 from app.core.errors import ApiError, api_error_handler
@@ -93,6 +94,7 @@ def create_app(
     app.include_router(system_api.router)
     app.include_router(capabilities_api.router)
     app.include_router(sessions_api.router)
+    app.include_router(settings_api.router)
     app.include_router(documents_api.router)
     app.include_router(pages_api.router)
     app.include_router(operations_api.router)

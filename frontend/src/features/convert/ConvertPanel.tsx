@@ -15,7 +15,7 @@ interface ConvertPanelProps {
   announce: (message: string) => void;
 }
 
-type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress';
+type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers';
 
 export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [mode, setMode] = useState<Mode>('pdf-to-images');
@@ -31,6 +31,8 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [keywords, setKeywords] = useState('');
   const [clearMeta, setClearMeta] = useState(false);
   const [lossy, setLossy] = useState(false);
+  const [watermarkText, setWatermarkText] = useState('CONFIDENCIAL');
+  const [pageNumberFormat, setPageNumberFormat] = useState('{page}');
   const [jobStatus, setJobStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -59,6 +61,12 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
       } else if (mode === 'compress') {
         if (!docId) throw new Error('Seleccioná un documento.');
         params = { ...params, document_id: docId, lossy };
+      } else if (mode === 'watermark') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        params = { ...params, document_id: docId, text: watermarkText };
+      } else if (mode === 'page-numbers') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        params = { ...params, document_id: docId, format: pageNumberFormat };
       }
 
       const r = await api.createJob(mode, params);
@@ -107,6 +115,8 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
               <SelectItem value="extract-text">Extraer texto</SelectItem>
               <SelectItem value="edit-metadata">Editar metadatos</SelectItem>
               <SelectItem value="compress">Comprimir</SelectItem>
+              <SelectItem value="watermark">Marca de agua</SelectItem>
+              <SelectItem value="page-numbers">Numerar páginas</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -186,6 +196,18 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
             <input type="checkbox" checked={lossy} onChange={(e) => setLossy(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
             Compresión con pérdida (rasterizar)
           </label>
+        )}
+        {mode === 'watermark' && (
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <Input value={watermarkText} onChange={(e) => setWatermarkText(e.target.value)} className="h-9 text-sm" />
+          </div>
+        )}
+
+        {mode === 'page-numbers' && (
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Formato ({"{page}"}, {"{total}"})</label>
+            <Input value={pageNumberFormat} onChange={(e) => setPageNumberFormat(e.target.value)} className="h-9 text-sm" />
+          </div>
         )}
 
         <div className="min-w-[220px] flex-1 space-y-1">
