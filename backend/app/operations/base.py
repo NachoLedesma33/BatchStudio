@@ -15,6 +15,7 @@ class PlanItem:
     pages: list[int] | None = None
     exists: bool = False
     output_path: str | None = None
+    source_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -23,6 +24,7 @@ class PlanItem:
             "pages": self.pages,
             "exists": self.exists,
             "output_path": self.output_path,
+            "source_path": self.source_path,
         }
 
 

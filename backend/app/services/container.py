@@ -14,6 +14,7 @@ from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
 from app.operations.merge import MergeOperation
 from app.operations.registry import OperationRegistry
+from app.operations.split import SplitOperation
 from app.services.capabilities import CapabilityService
 from app.services.event_bus import EventBus
 from app.services.job_worker import JobWorker
@@ -59,6 +60,7 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
 
     registry = OperationRegistry()
     registry.register(MergeOperation(documents))
+    registry.register(SplitOperation(documents, cfg))
 
     events = EventBus()
     worker = JobWorker(
