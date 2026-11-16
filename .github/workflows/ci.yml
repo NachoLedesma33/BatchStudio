@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  backend:
+    name: Backend (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias
+        working-directory: backend
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Tests
+        working-directory: backend
+        env:
+          PDFBS_DATA_DIR: ${{ runner.temp }}/pdfbs-ci
+          PYTHONWARNINGS: error::FutureWarning
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Tipos
+        working-directory: frontend
+        run: npx tsc -b
+
+      - name: Tests
+        working-directory: frontend
+        run: npm run test:run
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build

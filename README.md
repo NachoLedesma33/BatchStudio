@@ -60,12 +60,37 @@ python scripts/build_desktop.py
 
 El resultado queda en `packaging/build/dist/PDF Batch Studio/`.
 
+## Datos y configuración
+
+- Directorio de datos: `~/.pdf-batch-studio` (configurable con `PDFBS_DATA_DIR`).
+  Ahí viven `db/app.db` (SQLite en WAL), `cache/thumbs/`, `imports/`, `tmp/`.
+- El backend expone la API v2 (`/api/sessions`, `/api/documents`, `/api/jobs`,
+  `/api/system/capabilities`) y mantiene `/api/merge-jobs` como alias compatible.
+- Al abrirse la app se genera un token local que viaja en `#token=…`; la interfaz
+  lo guarda en `sessionStorage` y lo manda en `X-PDFBS-Token`.
+- Las capacidades externas (Tesseract, LibreOffice, qpdf, Ghostscript) se detectan
+  en tiempo real: `/api/system/capabilities` informa cuáles faltan, sin simularlas.
+
 ## Tests
+
+Backend:
 
 ```bash
 cd backend
 python -m pytest -q
 ```
+
+Frontend:
+
+```bash
+cd frontend
+npm run lint
+npx tsc -b
+npm run test:run
+npm run build
+```
+
+CI (`.github/workflows/ci.yml`) corre ambos gates en `windows-latest` para cada PR.
 
 ## Benchmark
 
@@ -75,7 +100,8 @@ python scripts/benchmark_merge.py --count 1000 --out C:/temp/bench1000
 
 ## Desviaciones del SDD
 
-- Token de sesión del backend no implementado en el MVP (solo loopback + CORS).
+- Token de sesión del backend: implementado en F0 (token local en `#token=…`, header
+  `X-PDFBS-Token`, verificación de `Origin`/`Host`, `/api/health` exento).
 - La importación en el frontend se realiza por carga de archivos (upload) a una carpeta temporal controlada, porque el navegador no expone rutas absolutas.
 - El reordenamiento se hace con dnd-kit (drag & drop) además de la lista.
 - Se usa renderizado de páginas en el backend (PNG) en lugar de PDF.js en el frontend.

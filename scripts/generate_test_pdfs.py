@@ -9,18 +9,18 @@ import argparse
 import random
 from pathlib import Path
 
-import fitz  # PyMuPDF
+import pymupdf
 
 
 def generate(count: int, out_dir: Path, pages_per_doc: int = 1) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for i in range(count):
-        doc = fitz.open()
+        doc = pymupdf.open()
         for p in range(pages_per_doc):
             page = doc.new_page()
             page.insert_text((72, 72), f"Documento de prueba {i} - pagina {p + 1}")
             # add a small image-like rectangle
-            page.draw_rect(fitz.Rect(100, 100, 200, 200), color=(0.2, 0.4, 0.8))
+            page.draw_rect(pymupdf.Rect(100, 100, 200, 200), color=(0.2, 0.4, 0.8))
         name = f"doc_{i:05d}.pdf"
         doc.save(out_dir / name)
         doc.close()

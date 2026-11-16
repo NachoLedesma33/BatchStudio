@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import fitz  # PyMuPDF
+import pymupdf
 
 from app.models.document import PdfDocument, PdfStatus
 
@@ -52,7 +52,7 @@ def inspect_pdf(path: str | Path, compute_hash: bool = True) -> PdfDocument:
     doc.status = PdfStatus.INSPECTING
     fitz_doc = None
     try:
-        fitz_doc = fitz.open(str(p))
+        fitz_doc = pymupdf.open(str(p))
         if fitz_doc.is_closed:
             raise RuntimeError("No se pudo abrir el documento.")
         if fitz_doc.needs_pass:

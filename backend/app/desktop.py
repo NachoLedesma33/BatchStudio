@@ -67,8 +67,7 @@ def _free_port(preferred: int) -> int:
         return int(sock.getsockname()[1])
 
 
-def _open_browser_when_ready(port: int) -> None:
-    url = f"http://{CONFIG.host}:{port}/"
+def _open_browser_when_ready(port: int, url: str) -> None:
     for _ in range(100):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(0.5)
@@ -81,12 +80,12 @@ def _open_browser_when_ready(port: int) -> None:
 
 def _run_native_dialog() -> int:
     """Subcomando interno: abre el diálogo nativo (usado desde el ejecutable)."""
-    from app.main import _DIALOG_SCRIPT
+    from app.services.native_dialog import DIALOG_SCRIPT
 
     # El script espera (kind, initial_dir, initial_name, out_file) en argv[1:5].
     sys.argv = [sys.argv[0]] + sys.argv[2:6]
     namespace: dict = {"__name__": "__main__"}
-    exec(compile(_DIALOG_SCRIPT, "<native-dialog>", "exec"), namespace)  # noqa: S102
+    exec(compile(DIALOG_SCRIPT, "<native-dialog>", "exec"), namespace)  # noqa: S102
     return 0
 
 
@@ -106,10 +105,14 @@ def main() -> int:
         return 1
 
     port = _free_port(CONFIG.port)
-    url = f"http://{CONFIG.host}:{port}/"
+    # El token viaja en el fragmento: no se registra en logs ni en el historial
+    # del navegador como parte de la ruta.
+    url = f"http://{CONFIG.host}:{port}/#token={app.state.token}"
     _log(f"PDF Batch Studio -> {url}\nCerrá esta ventana para salir.")
 
-    threading.Thread(target=_open_browser_when_ready, args=(port,), daemon=True).start()
+    threading.Thread(
+        target=_open_browser_when_ready, args=(port, url), daemon=True
+    ).start()
     uvicorn.run(app, host=CONFIG.host, port=port, log_level="warning")
     return 0
 

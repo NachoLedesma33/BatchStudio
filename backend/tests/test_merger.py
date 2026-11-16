@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import fitz
+import pymupdf
 
 from app.services.pdf_merger import merge_pdfs, MergeResult
 
@@ -24,7 +24,7 @@ def test_merge_three(three_pdfs, tmp_path):
     assert res.status in ("completed", "completed_with_errors")
     assert out.exists()
     assert res.total_pages == 1 + 2 + 3
-    with fitz.open(str(out)) as d:
+    with pymupdf.open(str(out)) as d:
         assert d.page_count == 6
     # originals unchanged
     assert [_hash(p) for p in three_pdfs] == hashes_before

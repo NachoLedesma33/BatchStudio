@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
-import fitz  # PyMuPDF
+import pymupdf
 import psutil
 
 from app.models.document import MergeError, MergeResult, PdfDocument, PdfStatus
@@ -72,14 +72,14 @@ def merge_pdfs(
     # Precompute estimated pages (best effort)
     for p in src_paths:
         try:
-            with fitz.open(str(p)) as d:
+            with pymupdf.open(str(p)) as d:
                 total_estimated += d.page_count
         except Exception:  # noqa: BLE001
             pass
 
     target = None
     try:
-        target = fitz.open()  # empty
+        target = pymupdf.open()  # empty
         total = len(src_paths)
         for idx, (p, did) in enumerate(zip(src_paths, ids)):
             if cancel_event is not None and cancel_event.is_set():
@@ -100,7 +100,7 @@ def merge_pdfs(
 
             src = None
             try:
-                src = fitz.open(str(p))
+                src = pymupdf.open(str(p))
                 if src.needs_pass:
                     errors.append(MergeError(document_id=did, path=str(p), message="PDF protegido con contraseña."))
                     src.close()
@@ -138,7 +138,7 @@ def merge_pdfs(
             # verify
             if progress:
                 progress("verifying", len(src_paths), len(src_paths), None, 98.0, time.perf_counter() - start)
-            with fitz.open(str(tmp)) as v:
+            with pymupdf.open(str(tmp)) as v:
                 actual_pages = v.page_count
             # Verification: pages must equal merged_pages
             if actual_pages != merged_pages:

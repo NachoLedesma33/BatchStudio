@@ -34,3 +34,40 @@ class SaveSessionRequest(BaseModel):
 
 class LoadSessionRequest(BaseModel):
     path: str
+
+
+class CreateSessionRequest(BaseModel):
+    name: Optional[str] = None
+
+
+class UpdateSessionRequest(BaseModel):
+    name: Optional[str] = None
+    state: Optional[dict[str, Any]] = None
+
+
+class PreviewRequest(BaseModel):
+    kind: str
+    session_id: Optional[str] = None
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class CreateJobRequest(PreviewRequest):
+    pass
+
+
+class RevealRequest(BaseModel):
+    path: str
+
+
+class SavePathRequest(BaseModel):
+    initial_dir: Optional[str] = None
+    initial_name: Optional[str] = None
+
+
+class PickFolderRequest(BaseModel):
+    initial_dir: Optional[str] = None
+
+
+class PickFilesRequest(BaseModel):
+    initial_dir: Optional[str] = None
+    multiple: bool = True
