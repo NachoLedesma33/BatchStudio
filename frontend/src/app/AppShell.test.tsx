@@ -16,6 +16,8 @@ vi.mock('@tanstack/react-virtual', () => ({
 
 const server = setupServer(
   http.get('*/api/documents', () => HttpResponse.json({ documents: [] })),
+  http.post('*/api/sessions/autorestore', () => HttpResponse.json({ restored: false, documents: [] })),
+  http.post('*/api/sessions/autosave', () => HttpResponse.json({ path: '/tmp/autosave.json' })),
 );
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));

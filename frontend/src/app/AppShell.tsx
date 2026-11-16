@@ -61,7 +61,14 @@ export default function AppShell() {
   const listParentRef = useRef<HTMLDivElement>(null);
 
   const announce = useCallback((message: string) => setLiveMessage(message), []);
+
   const session = useMergeSession({ outputDir, outputName, overwrite, announce });
+  // Autoguardado y restauración de la sesión.
+  useEffect(() => {
+    api.autorestoreSession().then((r) => { if (r.restored) void session.refresh(); }).catch(() => {});
+    const id = window.setInterval(() => { void api.autosaveSession().catch(() => {}); }, 60000);
+    return () => window.clearInterval(id);
+  }, [session.refresh]);
   const docs = session.docs;
   const split = useSplitSession({ outputDir, announce });
 

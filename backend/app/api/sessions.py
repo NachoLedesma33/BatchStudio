@@ -79,7 +79,53 @@ def load_session_export(
     return {"documents": [doc.to_dict() for doc in services.documents.list(session_id)]}
 
 
-@router.get("/{session_id}")
+@router.post("/autosave")
+def autosave_session(
+    session_id: str = Depends(get_session_id),
+    services: Services = Depends(get_services),
+):
+    path = services.config.session_dir / "autosave.json"
+    data = {
+        "version": 1,
+        "session_id": session_id,
+        "documents": [doc.to_dict() for doc in services.documents.list(session_id)],
+    }
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    services.settings.set("last_session_path", str(path))
+    return {"path": str(path)}
+
+
+@router.post("/autorestore")
+def autorestore_session(
+    session_id: str = Depends(get_session_id),
+    services: Services = Depends(get_services),
+):
+    path_raw = services.settings.get("last_session_path")
+    if not path_raw:
+        return {"restored": False, "documents": []}
+    path = Path(str(path_raw)).expanduser()
+    if not path.is_file():
+        return {"restored": False, "documents": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"restored": False, "documents": []}
+    documents = data.get("documents") if isinstance(data, dict) else None
+    if not isinstance(documents, list):
+        return {"restored": False, "documents": []}
+    services.documents.clear(session_id)
+    for raw in documents:
+        if not isinstance(raw, dict):
+            continue
+        fields = {k: v for k, v in raw.items() if k in PdfDocument.__dataclass_fields__}
+        doc = PdfDocument(**fields)
+        try:
+            doc.status = PdfStatus(raw.get("status", "pending"))
+        except ValueError:
+            doc.status = PdfStatus.PENDING
+        services.documents.upsert(session_id, doc)
+    services.sessions.touch(session_id)
+    return {"restored": True, "documents": [doc.to_dict() for doc in services.documents.list(session_id)]}
 def get_session(session_id: str, services: Services = Depends(get_services)):
     session = services.sessions.get(session_id)
     if session is None:

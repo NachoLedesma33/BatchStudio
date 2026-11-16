@@ -101,7 +101,8 @@ export const api = {
   cancelJob: (id: string) => request<{ ok: boolean }>(`/merge-jobs/${id}/cancel`, { method: 'POST' }),
   report: (id: string) => request<MergeResult>(`/merge-jobs/${id}/report`),
 
-  saveSession: () => request<{ path: string }>('/sessions/save', { method: 'POST' }),
+  autosaveSession: () => request<{ path: string }>('/sessions/autosave', { method: 'POST' }),
+  autorestoreSession: () => request<{ restored: boolean; documents: PdfDocument[] }>('/sessions/autorestore', { method: 'POST' }),
   listSessions: () =>
     request<{ sessions: Array<Record<string, unknown>> }>('/sessions'),
   history: (limit = 50) =>
