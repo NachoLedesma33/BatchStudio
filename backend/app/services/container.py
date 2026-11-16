@@ -12,8 +12,10 @@ from app.db.repositories.jobs import JobRepository
 from app.db.repositories.pages import PageRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
+from app.operations.extract import ExtractOperation
 from app.operations.merge import MergeOperation
 from app.operations.registry import OperationRegistry
+from app.operations.rotate import RotateOperation
 from app.operations.split import SplitOperation
 from app.services.capabilities import CapabilityService
 from app.services.event_bus import EventBus
@@ -61,6 +63,8 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry = OperationRegistry()
     registry.register(MergeOperation(documents))
     registry.register(SplitOperation(documents, cfg))
+    registry.register(ExtractOperation(documents, cfg))
+    registry.register(RotateOperation(documents, cfg))
 
     events = EventBus()
     worker = JobWorker(
