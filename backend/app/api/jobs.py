@@ -141,6 +141,52 @@ def retry_job(job_id: str, services: Services = Depends(get_services)):
     return {"job_id": job_id, "status": "queued"}
 
 
+@router.get("/{job_id}/report/export")
+def export_job_report(
+    job_id: str,
+    format: str = Query(default="json"),
+    services: Services = Depends(get_services),
+):
+    job = services.jobs.get(job_id)
+    if job is None:
+        raise ApiError("JOB_NOT_FOUND", "El trabajo no existe.", status_code=404)
+    report = {
+        "job_id": job["id"],
+        "kind": job["kind"],
+        "status": job["status"],
+        "result": job.get("output"),
+        "items": job.get("items", []),
+        "errors": job.get("errors", []),
+    }
+    if format.lower() == "json":
+        return report
+    if format.lower() == "csv":
+        import csv
+        import io
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["index", "label", "status", "output_path", "message"])
+        for item in job.get("items", []):
+            writer.writerow(
+                [
+                    item.get("index"),
+                    item.get("label"),
+                    item.get("status"),
+                    item.get("output_path"),
+                    item.get("message"),
+                ]
+            )
+        return {"format": "csv", "content": buffer.getvalue()}
+    # txt
+    lines = [f"Job {job['id']} - {job['kind']} - {job['status']}"]
+    for item in job.get("items", []):
+        lines.append(f"{item.get('index')}. {item.get('label')} - {item.get('status')} {item.get('output_path') or ''}")
+    if job.get("errors"):
+        lines.append("Errores:")
+        for err in job.get("errors", []):
+            lines.append(f"- {err.get('message')}")
+    return {"format": "txt", "content": "\n".join(lines)}
 @router.get("/{job_id}/report")
 def job_report(job_id: str, services: Services = Depends(get_services)):
     job = services.jobs.get(job_id)
