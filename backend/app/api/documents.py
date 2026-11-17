@@ -22,6 +22,52 @@ from app.services.pdf_inspector import inspect_folder, inspect_pdf
 router = APIRouter(prefix="/api", tags=["documents"])
 
 
+@router.get("/documents/{document_id}/blank-pages")
+def detect_blank_pages(
+    document_id: str,
+    threshold: float = 0.01,
+    session_id: str = Depends(get_session_id),
+    services: Services = Depends(get_services),
+):
+    doc = None
+    for d in services.documents.list(session_id):
+        if d.id == document_id:
+            doc = d
+            break
+    if doc is None:
+        raise ApiError("DOCUMENT_NOT_FOUND", "El documento no existe en el lote.", status_code=404)
+    import pymupdf
+
+    blank = []
+    try:
+        with pymupdf.open(doc.path) as pdf:
+            if pdf.needs_pass:
+                raise ApiError("PROTECTED", "El PDF está protegido.", status_code=400)
+            for i in range(pdf.page_count):
+                page = pdf[i]
+                text = page.get_text().strip()
+                if text:
+                    continue
+                pix = page.get_pixmap(matrix=pymupdf.Matrix(0.5, 0.5))
+                samples = pix.samples
+                # count non-white pixels
+                total = pix.width * pix.height
+                non_white = 0
+                # samples may be RGB/RGBA; check brightness
+                for j in range(0, len(samples), pix.n):
+                    # if any channel < 250 consider ink
+                    if any(samples[j + c] < 250 for c in range(min(3, pix.n))):
+                        non_white += 1
+                ratio = non_white / max(1, total)
+                if ratio < threshold:
+                    blank.append(i + 1)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError("BLANK_DETECT_FAILED", "No se pudieron analizar las páginas.", context={"detail": str(exc)})
+    return {"document_id": document_id, "blank_pages": blank, "threshold": threshold}
+
+
 def _to_dict(doc: PdfDocument) -> dict:
     return doc.to_dict()
 

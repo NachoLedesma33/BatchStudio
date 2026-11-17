@@ -15,6 +15,7 @@ from app.db.repositories.search import SearchRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
 from app.operations.compress import CompressOperation
+from app.operations.crop import CropOperation
 from app.operations.edit_metadata import EditMetadataOperation
 from app.operations.extract import ExtractOperation
 from app.operations.extract_text import ExtractTextOperation
@@ -83,6 +84,7 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry.register(ExtractTextOperation(documents, cfg))
     registry.register(EditMetadataOperation(documents, cfg))
     registry.register(CompressOperation(documents, cfg))
+    registry.register(CropOperation(documents, cfg))
     registry.register(WatermarkOperation(documents, cfg))
     registry.register(PageNumbersOperation(documents, cfg))
 

@@ -15,7 +15,7 @@ interface ConvertPanelProps {
   announce: (message: string) => void;
 }
 
-type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers';
+type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers' | 'crop';
 
 export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [mode, setMode] = useState<Mode>('pdf-to-images');
@@ -33,6 +33,10 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [lossy, setLossy] = useState(false);
   const [watermarkText, setWatermarkText] = useState('CONFIDENCIAL');
   const [pageNumberFormat, setPageNumberFormat] = useState('{page}');
+  const [cropTop, setCropTop] = useState('0');
+  const [cropRight, setCropRight] = useState('0');
+  const [cropBottom, setCropBottom] = useState('0');
+  const [cropLeft, setCropLeft] = useState('0');
   const [jobStatus, setJobStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -67,6 +71,9 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
       } else if (mode === 'page-numbers') {
         if (!docId) throw new Error('Seleccioná un documento.');
         params = { ...params, document_id: docId, format: pageNumberFormat };
+      } else if (mode === 'crop') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        params = { ...params, document_id: docId, top: Number(cropTop), right: Number(cropRight), bottom: Number(cropBottom), left: Number(cropLeft) };
       }
 
       const r = await api.createJob(mode, params);
@@ -117,6 +124,7 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
               <SelectItem value="compress">Comprimir</SelectItem>
               <SelectItem value="watermark">Marca de agua</SelectItem>
               <SelectItem value="page-numbers">Numerar páginas</SelectItem>
+              <SelectItem value="crop">Recortar márgenes</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -203,6 +211,26 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
           </div>
         )}
 
+        {mode === 'crop' && (
+          <div className="flex gap-2">
+            {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+              <div key={side} className="min-w-[80px] space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">{side}</label>
+                <Input
+                  value={side === 'top' ? cropTop : side === 'right' ? cropRight : side === 'bottom' ? cropBottom : cropLeft}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (side === 'top') setCropTop(v);
+                    else if (side === 'right') setCropRight(v);
+                    else if (side === 'bottom') setCropBottom(v);
+                    else setCropLeft(v);
+                  }}
+                  className="h-9 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+        )}
         {mode === 'page-numbers' && (
           <div className="min-w-[220px] flex-1 space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Formato ({"{page}"}, {"{total}"})</label>
