@@ -71,8 +71,14 @@ El resultado queda en `packaging/build/dist/PDF Batch Studio/`.
 - Las capacidades externas (Tesseract, LibreOffice, qpdf, Ghostscript) se detectan
   en tiempo real: `/api/system/capabilities` informa cuáles faltan, sin simularlas.
 
-## Tests
+## Ejecución rápida
 
+```bash
+npm run all        # backend (8765) + frontend (5173) en desarrollo (sin token)
+npm run prod       # compila el frontend y abre la app en un solo proceso
+```
+
+## Tests
 Backend:
 
 ```bash
@@ -95,8 +101,9 @@ CI (`.github/workflows/ci.yml`) corre ambos gates en `windows-latest` para cada 
 ## Benchmark
 
 ```bash
-python scripts/benchmark_merge.py --count 1000 --out C:/temp/bench1000
+python scripts/benchmark_split.py --pages 500
 ```
+
 
 ## Desviaciones del SDD
 
