@@ -15,6 +15,7 @@ from app.db.repositories.search import SearchRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
 from app.operations.compress import CompressOperation
+from app.operations.compare import CompareOperation
 from app.operations.crop import CropOperation
 from app.operations.edit_metadata import EditMetadataOperation
 from app.operations.extract import ExtractOperation
@@ -25,6 +26,8 @@ from app.operations.pdf_to_images import PdfToImagesOperation
 from app.operations.registry import OperationRegistry
 from app.operations.page_numbers import PageNumbersOperation
 from app.operations.rotate import RotateOperation
+from app.operations.unlock import UnlockOperation
+from app.operations.visual_signature import VisualSignatureOperation
 from app.operations.split import SplitOperation
 from app.operations.watermark import WatermarkOperation
 from app.services.capabilities import CapabilityService
@@ -85,6 +88,9 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry.register(EditMetadataOperation(documents, cfg))
     registry.register(CompressOperation(documents, cfg))
     registry.register(CropOperation(documents, cfg))
+    registry.register(UnlockOperation(documents, cfg))
+    registry.register(VisualSignatureOperation(documents, cfg))
+    registry.register(CompareOperation(documents, cfg))
     registry.register(WatermarkOperation(documents, cfg))
     registry.register(PageNumbersOperation(documents, cfg))
 

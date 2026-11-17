@@ -15,7 +15,7 @@ interface ConvertPanelProps {
   announce: (message: string) => void;
 }
 
-type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers' | 'crop';
+type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers' | 'crop' | 'unlock' | 'visual-signature' | 'compare';
 
 export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [mode, setMode] = useState<Mode>('pdf-to-images');
@@ -37,6 +37,9 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [cropRight, setCropRight] = useState('0');
   const [cropBottom, setCropBottom] = useState('0');
   const [cropLeft, setCropLeft] = useState('0');
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [signatureImage, setSignatureImage] = useState('');
+  const [compareDocId, setCompareDocId] = useState('');
   const [jobStatus, setJobStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -74,6 +77,16 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
       } else if (mode === 'crop') {
         if (!docId) throw new Error('Seleccioná un documento.');
         params = { ...params, document_id: docId, top: Number(cropTop), right: Number(cropRight), bottom: Number(cropBottom), left: Number(cropLeft) };
+      } else if (mode === 'unlock') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        params = { ...params, document_id: docId, password: unlockPassword };
+      } else if (mode === 'visual-signature') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        if (!signatureImage) throw new Error('Seleccioná una imagen de firma.');
+        params = { ...params, document_id: docId, image_path: signatureImage };
+      } else if (mode === 'compare') {
+        if (!docId || !compareDocId) throw new Error('Seleccioná dos documentos.');
+        params = { ...params, document_id_a: docId, document_id_b: compareDocId };
       }
 
       const r = await api.createJob(mode, params);
@@ -125,6 +138,9 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
               <SelectItem value="watermark">Marca de agua</SelectItem>
               <SelectItem value="page-numbers">Numerar páginas</SelectItem>
               <SelectItem value="crop">Recortar márgenes</SelectItem>
+              <SelectItem value="unlock">Desbloquear PDF</SelectItem>
+              <SelectItem value="visual-signature">Firma visual</SelectItem>
+              <SelectItem value="compare">Comparar dos PDFs</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -211,6 +227,34 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
           </div>
         )}
 
+        {mode === 'unlock' && (
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Contraseña</label>
+            <Input type="password" value={unlockPassword} onChange={(e) => setUnlockPassword(e.target.value)} className="h-9 text-sm" />
+          </div>
+        )}
+
+        {mode === 'visual-signature' && (
+          <div className="min-w-[220px] space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Imagen de firma</label>
+            <Button variant="outline" size="sm" onClick={async () => {
+              try { const r = await api.pickFiles(); if (r.paths?.length) setSignatureImage(r.paths[0]); } catch (e) { alert((e as Error).message); }
+            }}>Elegir imagen…</Button>
+            {signatureImage && <span className="ml-2 text-xs text-muted-foreground">{signatureImage.split(/[\\/]/).pop()}</span>}
+          </div>
+        )}
+
+        {mode === 'compare' && (
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Segundo documento</label>
+            <Select value={compareDocId} onValueChange={setCompareDocId}>
+              <SelectTrigger size="sm" className="w-full text-xs"><SelectValue placeholder="Elegí un documento" /></SelectTrigger>
+              <SelectContent>
+                {docs.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {mode === 'crop' && (
           <div className="flex gap-2">
             {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
