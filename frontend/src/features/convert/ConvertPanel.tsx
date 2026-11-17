@@ -15,7 +15,7 @@ interface ConvertPanelProps {
   announce: (message: string) => void;
 }
 
-type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers' | 'crop' | 'unlock' | 'visual-signature' | 'compare';
+type Mode = 'pdf-to-images' | 'images-to-pdf' | 'extract-text' | 'edit-metadata' | 'compress' | 'watermark' | 'page-numbers' | 'crop' | 'unlock' | 'visual-signature' | 'compare' | 'auto-rotate' | 'extract-annotations' | 'to-pdfa';
 
 export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
   const [mode, setMode] = useState<Mode>('pdf-to-images');
@@ -87,6 +87,9 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
       } else if (mode === 'compare') {
         if (!docId || !compareDocId) throw new Error('Seleccioná dos documentos.');
         params = { ...params, document_id_a: docId, document_id_b: compareDocId };
+      } else if (mode === 'auto-rotate' || mode === 'extract-annotations' || mode === 'to-pdfa') {
+        if (!docId) throw new Error('Seleccioná un documento.');
+        params = { ...params, document_id: docId };
       }
 
       const r = await api.createJob(mode, params);
@@ -141,6 +144,9 @@ export function ConvertPanel({ docs, outputDir, announce }: ConvertPanelProps) {
               <SelectItem value="unlock">Desbloquear PDF</SelectItem>
               <SelectItem value="visual-signature">Firma visual</SelectItem>
               <SelectItem value="compare">Comparar dos PDFs</SelectItem>
+              <SelectItem value="auto-rotate">Rotación automática</SelectItem>
+              <SelectItem value="extract-annotations">Extraer anotaciones</SelectItem>
+              <SelectItem value="to-pdfa">Convertir a PDF/A (intento)</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -15,11 +15,14 @@ from app.db.repositories.search import SearchRepository
 from app.db.repositories.sessions import DEFAULT_SESSION_ID, SessionRepository
 from app.db.repositories.settings import SettingsRepository
 from app.operations.compress import CompressOperation
+from app.operations.auto_rotate import AutoRotateOperation
 from app.operations.compare import CompareOperation
 from app.operations.crop import CropOperation
 from app.operations.edit_metadata import EditMetadataOperation
 from app.operations.extract import ExtractOperation
+from app.operations.extract_annotations import ExtractAnnotationsOperation
 from app.operations.extract_text import ExtractTextOperation
+from app.operations.pdfa import PdfaOperation
 from app.operations.images_to_pdf import ImagesToPdfOperation
 from app.operations.merge import MergeOperation
 from app.operations.pdf_to_images import PdfToImagesOperation
@@ -90,7 +93,9 @@ def build_services(config: AppConfig | None = None, *, db_path: str | Path | Non
     registry.register(CropOperation(documents, cfg))
     registry.register(UnlockOperation(documents, cfg))
     registry.register(VisualSignatureOperation(documents, cfg))
-    registry.register(CompareOperation(documents, cfg))
+    registry.register(AutoRotateOperation(documents, cfg))
+    registry.register(ExtractAnnotationsOperation(documents, cfg))
+    registry.register(PdfaOperation(documents, cfg))
     registry.register(WatermarkOperation(documents, cfg))
     registry.register(PageNumbersOperation(documents, cfg))
 
